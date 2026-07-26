@@ -17,7 +17,6 @@ import {
 import {
   effortZone,
   effortZoneThresholds,
-  pausedDuration,
   pointsInActivePeriod,
   soloStreak,
   suggestCombo,
@@ -40,6 +39,9 @@ import {
   materializeTwoStepChore,
   updateTwoStep,
 } from "./twoStepChore.js";
+import { DAY, uid, defaultData, normalizeData, applyOperation } from "./model/habitData.js";
+import { activePause, lastDone, activeDaysSinceDone, urgencyOf, healthScore } from "./model/choreMath.js";
+import { faceFor, timeAgo, historyDate } from "./utils/format.js";
 
 // HabitBubbles: a personal habit ecosystem.
 // Bubbles swell as opportunities come due. Tap to complete, drag to rearrange.
@@ -74,184 +76,10 @@ const STARTERS = [
   { name: "Dust surfaces", importance: 2, difficulty: 2, freqDays: 14, service: true },
 ];
 
-const uid = () => Math.random().toString(36).slice(2, 10);
-const DAY = 86400000;
 const realNow = () => Date.now();
 // Simulation support: shifts the app's sense of "now" forward for testing
 let TIME_OFFSET = 0;
-const now = () => Date.now() + TIME_OFFSET;
-
-const defaultData = () => ({
-  chores: [],
-  completions: [],
-  pauses: [],
-  settings: { mode: "solo", ownerName: "You", weeklyGoal: 14 },
-  updatedAt: 0,
-});
-
-function normalizeData(value) {
-  const defaults = defaultData();
-  const source = value && typeof value === "object" ? value : {};
-  return {
-    ...defaults,
-    ...source,
-    chores: Array.isArray(source.chores) ? source.chores : [],
-    completions: Array.isArray(source.completions) ? source.completions : [],
-    pauses: Array.isArray(source.pauses) ? source.pauses : [],
-    settings: {
-      ...defaults.settings,
-      ...(source.settings || {}),
-      mode: "solo",
-      ownerName:
-        source.settings?.ownerName ||
-        source.settings?.nameA ||
-        defaults.settings.ownerName,
-    },
-  };
-}
-
-// Operations are intentionally small and replayable so offline changes can be
-// applied safely to the newest saved state.
-function applyOperation(value, op) {
-  const data = normalizeData(value);
-  let next = data;
-
-  switch (op.type) {
-    case "completion:add": {
-      if (data.completions.some((item) => item.id === op.completion.id)) break;
-      next = { ...data, completions: [...data.completions, op.completion] };
-      break;
-    }
-    case "completion:add-many": {
-      const known = new Set(data.completions.map((item) => item.id));
-      next = { ...data, completions: [...data.completions, ...(op.completions || []).filter((item) => !known.has(item.id))] };
-      break;
-    }
-    case "completion:add-and-advance": {
-      if (data.completions.some((item) => item.id === op.completion.id)) break;
-      const chores = data.chores.map((item) =>
-        item.id === op.choreId ? advanceTwoStepChore(item) : item
-      );
-      next = { ...data, chores, completions: [...data.completions, op.completion] };
-      break;
-    }
-    case "completion:remove-and-restore": {
-      const ids = new Set(op.ids || []);
-      const chores = data.chores.map((item) =>
-        item.id === op.chore?.id ? op.chore : item
-      );
-      next = { ...data, chores, completions: data.completions.filter((item) => !ids.has(item.id)) };
-      break;
-    }
-    case "completion:remove": {
-      const ids = new Set(op.ids || []);
-      next = { ...data, completions: data.completions.filter((item) => !ids.has(item.id)) };
-      break;
-    }
-    case "chore:upsert": {
-      const exists = data.chores.some((item) => item.id === op.chore.id);
-      const chores = exists
-        ? data.chores.map((item) => (item.id === op.chore.id ? op.chore : item))
-        : [...data.chores, op.chore];
-      next = { ...data, chores };
-      break;
-    }
-    case "chore:add-many": {
-      const known = new Set(data.chores.map((item) => item.id));
-      next = { ...data, chores: [...data.chores, ...(op.chores || []).filter((item) => !known.has(item.id))] };
-      break;
-    }
-    case "chore:delete":
-      next = { ...data, chores: data.chores.filter((item) => item.id !== op.choreId) };
-      break;
-    case "chore:clear":
-      next = { ...data, chores: [] };
-      break;
-    case "pause:set": {
-      let pauses = [...data.pauses];
-      const active = pauses.filter((item) => item.scope === op.scope && item.end == null);
-      if (op.active && active.length === 0) {
-        pauses.push({ id: op.pauseId, scope: op.scope, start: op.at, end: null });
-      } else if (!op.active && active.length > 0) {
-        const activeIds = new Set(active.map((item) => item.id));
-        pauses = pauses.map((item) => (activeIds.has(item.id) ? { ...item, end: op.at } : item));
-      }
-      next = { ...data, pauses };
-      break;
-    }
-    case "settings:patch":
-      next = { ...data, settings: { ...data.settings, ...op.patch } };
-      break;
-    default:
-      break;
-  }
-
-  return { ...next, updatedAt: Math.max(next.updatedAt || 0, op.createdAt || 0) };
-}
-
-const activePause = (pauses, scope) => (pauses || []).find((p) => p.scope === scope && p.end == null);
-
-function lastDone(chore, completions) {
-  let t = chore.createdAt || 0;
-  for (const c of completions) if (c.choreId === chore.id && c.ts > t) t = c.ts;
-  return t;
-}
-
-function activeDaysSinceDone(chore, completions, pauses) {
-  const last = lastDone(chore, completions);
-  return Math.max(0, (now() - last - pausedDuration(pauses, ["house"], last, now())) / DAY);
-}
-
-function urgencyOf(chore, completions, pauses) {
-  return activeDaysSinceDone(chore, completions, pauses) / Math.max(chore.freqDays, 0.25);
-}
-
-// Weighted share of chores currently inside their frequency window
-function healthScore(chores, completions, pauses) {
-  if (!chores.length) return 1;
-  let num = 0, den = 0;
-  for (const ch of chores) {
-    const u = urgencyOf(ch, completions, pauses);
-    const s = Math.max(0, Math.min(2 - u, 1));
-    num += s * ch.importance;
-    den += ch.importance;
-  }
-  return den ? num / den : 1;
-}
-
-// The home's face: seven moods from loving bliss down to withering
-function faceFor(pct) {
-  if (pct >= 90) return "🥰🌱";
-  if (pct >= 75) return "🙂";
-  if (pct >= 60) return "😐";
-  if (pct >= 45) return "😟";
-  if (pct >= 30) return "😩";
-  if (pct >= 15) return "😫";
-  return "🥀";
-}
-
-function timeAgo(ts) {
-  const m = Math.floor((now() - ts) / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return m + "m ago";
-  const h = Math.floor(m / 60);
-  if (h < 24) return h + "h ago";
-  const d = Math.floor(h / 24);
-  if (d === 1) return "yesterday";
-  return d + "d ago";
-}
-
-function historyDate(ts) {
-  const date = new Date(Number(ts));
-  if (!Number.isFinite(date.getTime())) return "Unknown date";
-  return date.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+export const now = () => Date.now() + TIME_OFFSET;
 
 // ---------- Bubble field ----------
 function BubbleField({ chores, completions, pauses, onTap, popId, simDays, suggestedIds }) {
