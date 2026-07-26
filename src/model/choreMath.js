@@ -3,7 +3,7 @@
 // the screens no longer reference it.
 import { DAY } from "./habitData.js";
 import { pausedDuration } from "../logModel.js";
-import { now } from "../App.jsx";
+import { now } from "../utils/clock.js";
 
 export const activePause = (pauses, scope) => (pauses || []).find((p) => p.scope === scope && p.end == null);
 

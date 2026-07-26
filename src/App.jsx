@@ -42,6 +42,7 @@ import {
 import { DAY, uid, defaultData, normalizeData, applyOperation } from "./model/habitData.js";
 import { activePause, lastDone, activeDaysSinceDone, urgencyOf, healthScore } from "./model/choreMath.js";
 import { faceFor, timeAgo, historyDate } from "./utils/format.js";
+import { realNow, now, setTimeOffset } from "./utils/clock.js";
 
 // HabitBubbles: a personal habit ecosystem.
 // Bubbles swell as opportunities come due. Tap to complete, drag to rearrange.
@@ -75,11 +76,6 @@ const STARTERS = [
   { name: "Fridge clean-out", importance: 2, difficulty: 2, freqDays: 14, service: false },
   { name: "Dust surfaces", importance: 2, difficulty: 2, freqDays: 14, service: true },
 ];
-
-const realNow = () => Date.now();
-// Simulation support: shifts the app's sense of "now" forward for testing
-let TIME_OFFSET = 0;
-export const now = () => Date.now() + TIME_OFFSET;
 
 // ---------- Bubble field ----------
 function BubbleField({ chores, completions, pauses, onTap, popId, simDays, suggestedIds }) {
@@ -848,7 +844,7 @@ export default function HabitBubbles() {
 
   const setSim = (days) => {
     const d = Math.max(0, days);
-    TIME_OFFSET = d * DAY;
+    setTimeOffset(d * DAY);
     simDaysRef.current = d;
     // Seed the sandbox from real data when entering; drop it when back to today.
     if (d === 0) setSimData(null);

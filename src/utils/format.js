@@ -1,4 +1,4 @@
-import { now } from "../App.jsx";
+import { now } from "./clock.js";
 
 // The home's face: seven moods from loving bliss down to withering
 export function faceFor(pct) {
