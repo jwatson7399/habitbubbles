@@ -10,6 +10,7 @@ import { Modal } from "./components/Modal.jsx";
 import { btnStyle, Stepper } from "./components/controls.jsx";
 import RhythmBar from "./components/RhythmBar.jsx";
 import { OwnerNameEditor } from "./components/OwnerNameEditor.jsx";
+import { theme } from "./theme.js";
 import BubblesScreen from "./screens/BubblesScreen.jsx";
 import LogScreen from "./screens/LogScreen.jsx";
 import HabitsScreen from "./screens/HabitsScreen.jsx";
@@ -186,9 +187,9 @@ export default function HabitBubbles() {
 
   if (!data) {
     return (
-      <div style={{ height: "100dvh", display: "flex", flexDirection: "column", gap: 10, alignItems: "center", justifyContent: "center", textAlign: "center", padding: 28, background: "#0C1B26", color: "#7FA3AC", fontFamily: "'Nunito Sans', sans-serif" }}>
+      <div style={{ height: "100dvh", display: "flex", flexDirection: "column", gap: 10, alignItems: "center", justifyContent: "center", textAlign: "center", padding: 28, background: theme.night, color: theme.textMuted, fontFamily: "'Nunito Sans', sans-serif" }}>
         <div>Loading your habits...</div>
-        {syncState && <div style={{ color: "#FF8B7B", fontSize: 13, maxWidth: 380 }}>{syncState}</div>}
+        {syncState && <div style={{ color: theme.danger, fontSize: 13, maxWidth: 380 }}>{syncState}</div>}
       </div>
     );
   }
@@ -202,10 +203,10 @@ export default function HabitBubbles() {
   const rhythm = rhythmScore(view.habits, view.completions, now(), settings.rhythmWindowDays);
   const rhythmZoneInfo = rhythm == null ? null : rhythmZone(rhythm, settings.greenStart);
   const healthPct = rhythm == null ? null : Math.round(rhythm * 100);
-  const healthColor = !rhythmZoneInfo ? "#7FA3AC" : rhythmZoneInfo.key === "green" ? "#5FE0BB" : rhythmZoneInfo.key === "amber" ? "#FFC65E" : "#FF8B7B";
+  const healthColor = !rhythmZoneInfo ? theme.textMuted : rhythmZoneInfo.key === "green" ? theme.zoneTop : rhythmZoneInfo.key === "amber" ? theme.zoneMiddle : theme.zoneBehind;
 
   return (
-    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "radial-gradient(120% 100% at 50% 0%, #123240 0%, #0C1B26 70%)", fontFamily: "'Nunito Sans', sans-serif", color: "#E8F3F4", overflow: "hidden" }}>
+    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: `radial-gradient(120% 100% at 50% 0%, ${theme.surface} 0%, ${theme.night} 70%)`, fontFamily: "'Nunito Sans', sans-serif", color: theme.text, overflow: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Nunito+Sans:wght@400;600;700&display=swap');
         @keyframes breathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.045)} }
@@ -222,10 +223,10 @@ export default function HabitBubbles() {
       {/* Header */}
       <div style={{ padding: "calc(env(safe-area-inset-top) + 14px) 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: 0.3 }}>
-          Habit<span style={{ color: "#5FE0BB" }}>Bubbles</span>
+          Habit<span style={{ color: theme.zoneTop }}>Bubbles</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontSize: 12, color: simDays > 0 ? "#FFC65E" : "#7FA3AC", fontWeight: simDays > 0 ? 700 : 400 }}>
+          <div style={{ fontSize: 12, color: simDays > 0 ? theme.zoneMiddle : theme.textMuted, fontWeight: simDays > 0 ? 700 : 400 }}>
             {simDays > 0
               ? `⏩ +${simDays}d`
               : syncState || "local only"}
@@ -240,7 +241,7 @@ export default function HabitBubbles() {
       {view.habits.length > 0 && (
         <div style={{ padding: "2px 20px 10px" }}>
           {healthPct === null ? (
-            <div style={{ textAlign: "center", color: "#7FA3AC", fontSize: 13, padding: "8px 0" }}>
+            <div style={{ textAlign: "center", color: theme.textMuted, fontSize: 13, padding: "8px 0" }}>
               🌱 Warming up — your rhythm shows once a habit has run a full period.
             </div>
           ) : (
@@ -259,8 +260,8 @@ export default function HabitBubbles() {
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 5 }}>
-                <span style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 13, fontWeight: 600, color: "#B9D2D8", letterSpacing: 0.4 }}>My rhythm</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: healthPulse ? "#5FE0BB" : healthColor, transition: "color 0.5s ease" }}>
+                <span style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 13, fontWeight: 600, color: theme.textDim, letterSpacing: 0.4 }}>My rhythm</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: healthPulse ? theme.zoneTop : healthColor, transition: "color 0.5s ease" }}>
                   {healthPct}%
                 </span>
               </div>
@@ -306,7 +307,7 @@ export default function HabitBubbles() {
           <div style={{ padding: "0 20px 20px" }}>
             <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Solo settings</div>
             <Stepper
-              label="Green zone starts at"
+              label="Top zone starts at"
               value={Math.round(settings.greenStart * 100)}
               min={40}
               max={100}
@@ -314,22 +315,22 @@ export default function HabitBubbles() {
               onChange={(v) => commit({ type: "settings:patch", patch: { greenStart: v / 100 } })}
               format={(v) => `${v}%`}
             />
-            <div style={{ color: "#7FA3AC", fontSize: 11.5, margin: "-4px 0 8px" }}>
+            <div style={{ color: theme.textMuted, fontSize: 11.5, margin: "-4px 0 8px" }}>
               Land in the green once your rhythm reaches this percentage.
             </div>
             <OwnerNameEditor settings={settings} onSave={(ownerName) => commit({ type: "settings:patch", patch: { ownerName } })} />
             {view.habits.length > 0 && (
               <>
                 <div style={{ marginTop: 26, fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Board maintenance</div>
-                <div style={{ fontSize: 12, color: "#7FA3AC", margin: "4px 0 10px" }}>
+                <div style={{ fontSize: 12, color: theme.textMuted, margin: "4px 0 10px" }}>
                   Clear removes all habits so you can build a fresh list.
                 </div>
-                <button disabled={simDays > 0} onClick={() => window.confirm("Clear all habits? This removes every habit and cannot be undone.") && clearHabits()} style={{ ...btnStyle("#0F2530", "#FF8B7B"), width: "100%", border: "1px solid #1E4152", opacity: simDays > 0 ? 0.45 : 1 }}>
+                <button disabled={simDays > 0} onClick={() => window.confirm("Clear all habits? This removes every habit and cannot be undone.") && clearHabits()} style={{ ...btnStyle(theme.surface, theme.zoneBehind), width: "100%", border: `1px solid ${theme.border}`, opacity: simDays > 0 ? 0.45 : 1 }}>
                   🗑 Clear all habits
                 </button>
               </>
             )}
-            <button onClick={() => window.confirm("Clear the activity log? This cannot be undone.") && resetActivity()} style={{ ...btnStyle("#0F2530", "#FF8B7B"), width: "100%", marginTop: 8, border: "1px solid #1E4152", fontSize: 13 }}>
+            <button onClick={() => window.confirm("Clear the activity log? This cannot be undone.") && resetActivity()} style={{ ...btnStyle(theme.surface, theme.zoneBehind), width: "100%", marginTop: 8, border: `1px solid ${theme.border}`, fontSize: 13 }}>
               Clear activity log
             </button>
           </div>
@@ -337,7 +338,7 @@ export default function HabitBubbles() {
       )}
 
       {/* Tab bar */}
-      <div style={{ display: "flex", borderTop: "1px solid #1A3542", background: "#0E2230", paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div style={{ display: "flex", borderTop: `1px solid ${theme.border}`, background: theme.night, paddingBottom: "env(safe-area-inset-bottom)" }}>
         {[
           { id: "bubbles", label: "Bubbles", icon: "🫧" },
           { id: "log", label: "The Log", icon: "📊" },
@@ -346,7 +347,7 @@ export default function HabitBubbles() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            style={{ flex: 1, background: "none", border: "none", padding: "12px 0 14px", cursor: "pointer", color: tab === t.id ? "#5FE0BB" : "#7FA3AC", fontFamily: "'Baloo 2', sans-serif", fontSize: 13, fontWeight: 600, WebkitTapHighlightColor: "transparent" }}
+            style={{ flex: 1, background: "none", border: "none", padding: "12px 0 14px", cursor: "pointer", color: tab === t.id ? theme.zoneTop : theme.textMuted, fontFamily: "'Baloo 2', sans-serif", fontSize: 13, fontWeight: 600, WebkitTapHighlightColor: "transparent" }}
           >
             <div style={{ fontSize: 19 }}>{t.icon}</div>
             {t.label}
@@ -356,9 +357,9 @@ export default function HabitBubbles() {
 
       {/* Toast */}
       {toast && (
-        <div style={{ position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)", background: "#1E4152", borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 6px 24px rgba(0,0,0,0.45)", zIndex: 60, maxWidth: "92%" }}>
+        <div style={{ position: "fixed", bottom: 92, left: "50%", transform: "translateX(-50%)", background: theme.border, borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 6px 24px rgba(0,0,0,0.45)", zIndex: 60, maxWidth: "92%" }}>
           <span style={{ fontSize: 14 }}>{toast.msg}</span>
-          {toast.undoFn && <button onClick={toast.undoFn} style={{ background: "none", border: "none", color: "#5FE0BB", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Undo</button>}
+          {toast.undoFn && <button onClick={toast.undoFn} style={{ background: "none", border: "none", color: theme.zoneTop, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Undo</button>}
         </div>
       )}
 
@@ -366,18 +367,18 @@ export default function HabitBubbles() {
       {simOpen && (
         <Modal onClose={() => setSimOpen(false)}>
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700, marginBottom: 4 }}>Time machine 🧪</div>
-          <div style={{ fontSize: 13, color: "#7FA3AC", marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>
             Fast-forward this phone&apos;s clock to preview bubble growth and seven-day tallies. Test completions stay in a local sandbox and disappear when you return to today.
           </div>
-          <div style={{ textAlign: "center", fontFamily: "'Baloo 2', sans-serif", fontSize: 26, fontWeight: 700, color: simDays > 0 ? "#FFC65E" : "#E8F3F4", marginBottom: 14 }}>
+          <div style={{ textAlign: "center", fontFamily: "'Baloo 2', sans-serif", fontSize: 26, fontWeight: 700, color: simDays > 0 ? theme.zoneMiddle : theme.text, marginBottom: 14 }}>
             {simDays === 0 ? "Today" : `Today + ${simDays} day${simDays === 1 ? "" : "s"}`}
           </div>
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <button onClick={() => setSim(simDays + 1)} style={{ ...btnStyle("#0F2530", "#E8F3F4"), flex: 1, border: "1px solid #1E4152" }}>+1 day</button>
-            <button onClick={() => setSim(simDays + 3)} style={{ ...btnStyle("#0F2530", "#E8F3F4"), flex: 1, border: "1px solid #1E4152" }}>+3 days</button>
-            <button onClick={() => setSim(simDays + 7)} style={{ ...btnStyle("#0F2530", "#E8F3F4"), flex: 1, border: "1px solid #1E4152" }}>+1 week</button>
+            <button onClick={() => setSim(simDays + 1)} style={{ ...btnStyle(theme.surface, theme.text), flex: 1, border: `1px solid ${theme.border}` }}>+1 day</button>
+            <button onClick={() => setSim(simDays + 3)} style={{ ...btnStyle(theme.surface, theme.text), flex: 1, border: `1px solid ${theme.border}` }}>+3 days</button>
+            <button onClick={() => setSim(simDays + 7)} style={{ ...btnStyle(theme.surface, theme.text), flex: 1, border: `1px solid ${theme.border}` }}>+1 week</button>
           </div>
-          <button onClick={() => setSim(0)} style={{ ...btnStyle("#5FE0BB"), width: "100%", marginBottom: 10 }}>Back to today</button>
+          <button onClick={() => setSim(0)} style={{ ...btnStyle(theme.zoneTop), width: "100%", marginBottom: 10 }}>Back to today</button>
         </Modal>
       )}
 
@@ -385,12 +386,12 @@ export default function HabitBubbles() {
       {introOpen && (
         <Modal onClose={dismissIntro}>
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 21, fontWeight: 700, marginBottom: 14 }}>How HabitBubbles works 🫧</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, color: "#D7E7EA", fontSize: 14, lineHeight: 1.45, marginBottom: 20 }}>
-            <div><strong style={{ color: "#5FE0BB" }}>1.</strong> Bubbles grow as habits become due.</div>
-            <div><strong style={{ color: "#5FE0BB" }}>2.</strong> Tap a bubble when a habit is done.</div>
-            <div><strong style={{ color: "#5FE0BB" }}>3.</strong> What you do stays in your tally for seven active days. Keep your effort in the green.</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, color: theme.text, fontSize: 14, lineHeight: 1.45, marginBottom: 20 }}>
+            <div><strong style={{ color: theme.zoneTop }}>1.</strong> Set how often you want to do each habit — N times every P days.</div>
+            <div><strong style={{ color: theme.zoneTop }}>2.</strong> Its bubble grows as that opportunity comes due; tap it to log the habit as done.</div>
+            <div><strong style={{ color: theme.zoneTop }}>3.</strong> Your rhythm tracks how well you're keeping up over the last fortnight.</div>
           </div>
-          <button onClick={dismissIntro} style={{ ...btnStyle("#5FE0BB"), width: "100%" }}>Got it</button>
+          <button onClick={dismissIntro} style={{ ...btnStyle(theme.zoneTop), width: "100%" }}>Got it</button>
         </Modal>
       )}
     </div>

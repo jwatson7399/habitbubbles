@@ -1,4 +1,5 @@
 import React from "react";
+import { theme } from "../theme.js";
 
 export function Modal({ children, onClose }) {
   return (
@@ -8,7 +9,7 @@ export function Modal({ children, onClose }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ background: "#16303C", borderRadius: "22px 22px 0 0", padding: "22px 20px 34px", width: "100%", maxWidth: 480, maxHeight: "92dvh", overflowY: "auto", boxShadow: "0 -8px 40px rgba(0,0,0,0.5)" }}
+        style={{ background: theme.surfaceRaised, borderRadius: "22px 22px 0 0", padding: "22px 20px 34px", width: "100%", maxWidth: 480, maxHeight: "92dvh", overflowY: "auto", boxShadow: "0 -8px 40px rgba(0,0,0,0.5)" }}
       >
         {children}
       </div>

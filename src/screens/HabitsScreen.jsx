@@ -7,6 +7,7 @@ import { Modal } from "../components/Modal.jsx";
 import { btnStyle } from "../components/controls.jsx";
 import { HabitEditor, cadenceLabel } from "../components/HabitEditor.jsx";
 import { bubbleHue } from "../components/BubbleField.jsx";
+import { theme } from "../theme.js";
 
 const BLANK_HABIT = { name: "", importance: 3, effort: 3, quota: 1, periodDays: 1 };
 
@@ -82,12 +83,12 @@ export default function HabitsScreen({
             openExisting(habit);
           }
         }}
-        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid #1A3542", cursor: readOnly ? "default" : "pointer", opacity: readOnly ? 0.6 : 1 }}
+        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: `1px solid ${theme.border}`, cursor: readOnly ? "default" : "pointer", opacity: readOnly ? 0.6 : 1 }}
       >
         <div style={{ width: 14, height: 14, borderRadius: "50%", background: bubbleHue(i), flexShrink: 0, opacity: habit.archived ? 0.4 : 1 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 600 }}>{habit.name}</div>
-          <div style={{ fontSize: 12, color: "#7FA3AC" }}>{cadenceLabel(habit.quota, habit.periodDays)}</div>
+          <div style={{ fontSize: 12, color: theme.textMuted }}>{cadenceLabel(habit.quota, habit.periodDays)}</div>
           <div
             style={{
               display: "inline-flex",
@@ -97,8 +98,9 @@ export default function HabitsScreen({
               marginTop: 6,
               padding: "4px 8px",
               borderRadius: 8,
-              background: latest ? "#14372F" : "#142A35",
-              color: latest ? "#8EDCC5" : "#7FA3AC",
+              background: latest ? theme.surfaceRaised : theme.surface,
+              color: latest ? theme.zoneTopSoft : theme.textMuted,
+              border: latest ? `1px solid ${theme.zoneTop}` : "none",
               fontSize: 11.5,
               lineHeight: 1.2,
             }}
@@ -108,26 +110,26 @@ export default function HabitsScreen({
             </span>
           </div>
         </div>
-        <div style={{ color: "#7FA3AC" }}>›</div>
+        <div style={{ color: theme.textMuted }}>›</div>
       </div>
     );
   };
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
-      {readOnly && <div style={{ color: "#FFC65E", fontSize: 13, textAlign: "center", marginBottom: 10 }}>Preview mode is read-only.</div>}
+      {readOnly && <div style={{ color: theme.zoneMiddle, fontSize: 13, textAlign: "center", marginBottom: 10 }}>Preview mode is read-only.</div>}
 
-      <button disabled={readOnly} onClick={openNew} style={{ ...btnStyle("#5FE0BB"), width: "100%", marginBottom: 10, opacity: readOnly ? 0.45 : 1 }}>
+      <button disabled={readOnly} onClick={openNew} style={{ ...btnStyle(theme.zoneTop), width: "100%", marginBottom: 10, opacity: readOnly ? 0.45 : 1 }}>
         + Add habit
       </button>
       {habits.length === 0 && (
-        <button disabled={readOnly} onClick={loadStarters} style={{ ...btnStyle("#0F2530", "#B9D2D8"), width: "100%", marginBottom: 10, border: "1px solid #1E4152", opacity: readOnly ? 0.45 : 1 }}>
+        <button disabled={readOnly} onClick={loadStarters} style={{ ...btnStyle(theme.surface, theme.textDim), width: "100%", marginBottom: 10, border: `1px solid ${theme.border}`, opacity: readOnly ? 0.45 : 1 }}>
           Load my starter habits
         </button>
       )}
 
       {active.length === 0 && habits.length > 0 && (
-        <div style={{ color: "#7FA3AC", fontSize: 14, padding: "10px 0" }}>No active habits — everything's archived.</div>
+        <div style={{ color: theme.textMuted, fontSize: 14, padding: "10px 0" }}>No active habits — everything's archived.</div>
       )}
       {active.map(row)}
 
@@ -135,7 +137,7 @@ export default function HabitsScreen({
         <>
           <button
             onClick={() => setShowArchived((v) => !v)}
-            style={{ ...btnStyle("#0F2530", "#7FA3AC"), width: "100%", marginTop: 20, border: "1px solid #1E4152", fontSize: 13 }}
+            style={{ ...btnStyle(theme.surface, theme.textMuted), width: "100%", marginTop: 20, border: `1px solid ${theme.border}`, fontSize: 13 }}
           >
             {showArchived ? "▾" : "▸"} Archived ({archived.length})
           </button>
@@ -149,21 +151,21 @@ export default function HabitsScreen({
             {editing.id ? "Edit habit" : "New habit"}
           </div>
           <HabitEditor value={editing} onChange={(patch) => setEditing({ ...editing, ...patch })} completions={completions} />
-          {readOnly && <div style={{ color: "#FFC65E", fontSize: 12.5, marginTop: 10 }}>Preview mode is read-only — changes here won&apos;t be saved.</div>}
+          {readOnly && <div style={{ color: theme.zoneMiddle, fontSize: 12.5, marginTop: 10 }}>Preview mode is read-only — changes here won&apos;t be saved.</div>}
           <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
             {editing.id && !editing.archived && (
-              <button disabled={readOnly} onClick={archive} style={{ ...btnStyle("#0F2530", "#FFC65E"), flex: 1, border: "1px solid #1E4152", opacity: readOnly ? 0.45 : 1 }}>Archive</button>
+              <button disabled={readOnly} onClick={archive} style={{ ...btnStyle(theme.surface, theme.zoneMiddle), flex: 1, border: `1px solid ${theme.border}`, opacity: readOnly ? 0.45 : 1 }}>Archive</button>
             )}
             {editing.id && editing.archived && (
-              <button disabled={readOnly} onClick={unarchive} style={{ ...btnStyle("#0F2530", "#5FE0BB"), flex: 1, border: "1px solid #1E4152", opacity: readOnly ? 0.45 : 1 }}>Unarchive</button>
+              <button disabled={readOnly} onClick={unarchive} style={{ ...btnStyle(theme.surface, theme.zoneTop), flex: 1, border: `1px solid ${theme.border}`, opacity: readOnly ? 0.45 : 1 }}>Unarchive</button>
             )}
             {editing.id && (
-              <button disabled={readOnly} onClick={remove} style={{ ...btnStyle("#0F2530", "#FF8B7B"), flex: 1, border: "1px solid #1E4152", opacity: readOnly ? 0.45 : 1 }}>Delete</button>
+              <button disabled={readOnly} onClick={remove} style={{ ...btnStyle(theme.surface, theme.zoneBehind), flex: 1, border: `1px solid ${theme.border}`, opacity: readOnly ? 0.45 : 1 }}>Delete</button>
             )}
             <button
               disabled={readOnly}
               onClick={save}
-              style={{ ...btnStyle("#5FE0BB"), flex: 2, opacity: readOnly ? 0.45 : editing.name.trim() ? 1 : 0.5 }}
+              style={{ ...btnStyle(theme.zoneTop), flex: 2, opacity: readOnly ? 0.45 : editing.name.trim() ? 1 : 0.5 }}
             >
               Save habit
             </button>

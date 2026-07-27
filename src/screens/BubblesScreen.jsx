@@ -7,6 +7,7 @@ import { now as clockNow } from "../utils/clock.js";
 import { Modal } from "../components/Modal.jsx";
 import { btnStyle } from "../components/controls.jsx";
 import BubbleField from "../components/BubbleField.jsx";
+import { theme } from "../theme.js";
 
 // How a period reads in plain language, for the completion sheet's quota line
 // ("1 of 2 this week"). Habits era-appropriate cadences (daily, every-other-day,
@@ -78,7 +79,7 @@ export default function BubblesScreen({ habits, completions, simDays, popId, onC
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
       {simDays > 0 && (
-        <div style={{ margin: "4px 20px 0", padding: "9px 14px", background: "#3B3215", border: "1px solid #6E5C21", borderRadius: 12, fontSize: 13, color: "#FFC65E", textAlign: "center" }}>
+        <div style={{ margin: "4px 20px 0", padding: "9px 14px", background: `${theme.zoneMiddle}1A`, border: `1px solid ${theme.zoneMiddle}55`, borderRadius: 12, fontSize: 13, color: theme.zoneMiddle, textAlign: "center" }}>
           🧪 Time machine — tap bubbles to test. Nothing here is saved.
         </div>
       )}
@@ -96,9 +97,9 @@ export default function BubblesScreen({ habits, completions, simDays, popId, onC
           onClick={suggestNow}
           aria-label="What should I do now?"
           style={{
-            ...btnStyle(suggestedHabitId ? "#3B3415" : "#0F2530", "#FFE27A"),
+            ...btnStyle(suggestedHabitId ? theme.suggestBg : theme.surface, theme.suggest),
             width: "100%",
-            border: `1px solid ${suggestedHabitId ? "#C9A92C" : "#554B25"}`,
+            border: `1px solid ${suggestedHabitId ? theme.suggest : theme.suggestDim}`,
             opacity: canSuggest ? 1 : 0.45,
           }}
         >
@@ -109,22 +110,22 @@ export default function BubblesScreen({ habits, completions, simDays, popId, onC
       {tapHabit && (
         <Modal onClose={closeSheet}>
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700 }}>{tapHabit.name}</div>
-          <div style={{ fontSize: 13, color: "#7FA3AC", margin: "4px 0 16px" }}>
+          <div style={{ fontSize: 13, color: theme.textMuted, margin: "4px 0 16px" }}>
             {progress.done} of {progress.quota} {progress.label}
           </div>
-          <div style={{ fontSize: 12, color: "#7FA3AC", marginBottom: 7 }}>When was it done?</div>
+          <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 7 }}>When was it done?</div>
           <div style={{ display: "flex", gap: 7, marginBottom: 18, flexWrap: "wrap" }}>
             {[{ d: 0, l: "Just now" }, { d: 1, l: "Yesterday" }, { d: 2, l: "2 days ago" }, { d: 3, l: "3 days ago" }].map((o) => (
               <button
                 key={o.d}
                 onClick={() => setTapWhenDays(o.d)}
-                style={{ ...btnStyle(tapWhenDays === o.d ? "#5FE0BB" : "#0F2530", tapWhenDays === o.d ? "#0C1B26" : "#B9D2D8"), padding: "7px 12px", fontSize: 13, border: tapWhenDays === o.d ? "none" : "1px solid #1E4152" }}
+                style={{ ...btnStyle(tapWhenDays === o.d ? theme.zoneTop : theme.surface, tapWhenDays === o.d ? theme.night : theme.textDim), padding: "7px 12px", fontSize: 13, border: tapWhenDays === o.d ? "none" : `1px solid ${theme.border}` }}
               >
                 {o.l}
               </button>
             ))}
           </div>
-          <button onClick={markDone} style={{ ...btnStyle("#5FE0BB"), width: "100%" }}>
+          <button onClick={markDone} style={{ ...btnStyle(theme.zoneTop), width: "100%" }}>
             Mark done
           </button>
         </Modal>

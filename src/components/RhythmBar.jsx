@@ -1,5 +1,6 @@
 import React from "react";
 import { rhythmZone, AMBER_START, DEFAULT_GREEN_START } from "../model/rhythmModel.js";
+import { theme } from "../theme.js";
 
 // Zoned rhythm bar: red -> amber -> green background bands with divider ticks
 // at the real thresholds (AMBER_START, greenStart), plus a fill showing the
@@ -21,20 +22,20 @@ export default function RhythmBar({ score, greenStart = DEFAULT_GREEN_START, hei
         style={{
           height: Math.max(height, 20),
           borderRadius: 999,
-          background: "#0F2530",
-          border: "1px dashed #2A4756",
+          background: theme.surface,
+          border: `1px dashed ${theme.borderStrong}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <span style={{ fontSize: 11, color: "#7FA3AC", fontWeight: 700, lineHeight: 1 }}>🌱 warming up</span>
+        <span style={{ fontSize: 11, color: theme.textMuted, fontWeight: 700, lineHeight: 1 }}>🌱 warming up</span>
       </div>
     );
   }
 
   const zone = rhythmZone(score, greenStart);
-  const color = pulse ? "#5FE0BB" : zone.key === "green" ? "#5FE0BB" : zone.key === "amber" ? "#FFC65E" : "#FF8B7B";
+  const color = pulse ? theme.zoneTop : zone.key === "green" ? theme.zoneTop : zone.key === "amber" ? theme.zoneMiddle : theme.zoneBehind;
   const green = Math.min(1, Math.max(AMBER_START + 0.0001, Number(greenStart) || DEFAULT_GREEN_START));
   const buildingPct = Math.round(AMBER_START * 100);
   const greenPct = Math.round(green * 100);
@@ -51,8 +52,8 @@ export default function RhythmBar({ score, greenStart = DEFAULT_GREEN_START, hei
         position: "relative",
         height,
         borderRadius: height / 2,
-        background: `linear-gradient(to right, #FF8B7B30 0 ${buildingPct}%, #FFC65E30 ${buildingPct}% ${greenPct}%, #5FE0BB30 ${greenPct}% 100%)`,
-        border: "1px solid #1E4152",
+        background: `linear-gradient(to right, ${theme.zoneBehind}30 0 ${buildingPct}%, ${theme.zoneMiddle}30 ${buildingPct}% ${greenPct}%, ${theme.zoneTop}30 ${greenPct}% 100%)`,
+        border: `1px solid ${theme.border}`,
         overflow: "hidden",
       }}
     >
@@ -63,14 +64,14 @@ export default function RhythmBar({ score, greenStart = DEFAULT_GREEN_START, hei
           height: "100%",
           borderRadius: height / 2,
           background: `linear-gradient(to right, ${color}99, ${color})`,
-          boxShadow: pulse ? "0 0 20px #5FE0BBCC" : percent >= 80 ? `0 0 10px ${color}88` : "none",
+          boxShadow: pulse ? `0 0 20px ${theme.zoneTop}CC` : percent >= 80 ? `0 0 10px ${color}88` : "none",
           animation: pulse ? "barSwell 1.4s ease-out" : "none",
           transformOrigin: "left center",
           transition: "width 0.7s ease, background 0.35s ease, box-shadow 0.5s ease",
         }}
       />
-      <div aria-hidden="true" style={{ position: "absolute", inset: `0 auto 0 ${buildingPct}%`, width: 1, background: "#D8E9EC55" }} />
-      <div aria-hidden="true" style={{ position: "absolute", inset: `0 auto 0 ${greenPct}%`, width: 1, background: "#D8E9EC88" }} />
+      <div aria-hidden="true" style={{ position: "absolute", inset: `0 auto 0 ${buildingPct}%`, width: 1, background: `${theme.text}55` }} />
+      <div aria-hidden="true" style={{ position: "absolute", inset: `0 auto 0 ${greenPct}%`, width: 1, background: `${theme.text}88` }} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { clampBubbleCenter, releaseBubbleNode } from "../bubblePhysics.js";
 import { usesCompactBubbleLabel } from "../bubblePresentation.js";
 import { habitBubbleNodes } from "../model/bubbleSizing.js";
 import { now as clockNow } from "../utils/clock.js";
+import { theme } from "../theme.js";
 
 // Soft pastel color spread evenly around the wheel via the golden angle, so
 // each bubble gets a distinct hue and the range keeps widening with more habits.
@@ -201,7 +202,7 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
   return (
     <div ref={wrapRef} style={{ position: "relative", flex: 1, overflow: "hidden", touchAction: "none" }}>
       {(!habits || habits.length === 0) && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#7FA3AC", fontSize: 15, textAlign: "center", padding: 32 }}>
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: theme.textMuted, fontSize: 15, textAlign: "center", padding: 32 }}>
           No habits yet. Head to the Habits tab to add your list.
         </div>
       )}
@@ -255,9 +256,9 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
                 borderRadius: "50%",
                 background: `radial-gradient(circle at 32% 30%, ${n.hue}F5, ${n.hue}AA 60%, ${n.hue}66)`,
                 boxShadow: suggested
-                  ? `${bubbleShadow}, 0 0 0 3px #FFD95A, 0 0 22px #FFD95ADD, 0 0 42px #FFD95A88`
+                  ? `${bubbleShadow}, 0 0 0 3px ${theme.suggest}, 0 0 22px ${theme.suggest}DD, 0 0 42px ${theme.suggest}88`
                   : bubbleShadow,
-                outline: suggested ? "2px solid #FFF0A6" : "none",
+                outline: suggested ? `2px solid ${theme.suggest}` : "none",
                 outlineOffset: suggested ? 3 : 0,
                 border: due ? `2px solid ${n.hue}` : `1.5px solid ${n.hue}66`,
                 display: "flex",
@@ -291,7 +292,7 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
                       fontFamily: "'Baloo 2', sans-serif",
                       fontWeight: 700,
                       fontSize: Math.max(8, Math.min(n.visualRadius * 0.28, 16)),
-                      color: "#0C1B26",
+                      color: theme.night,
                       textAlign: "center",
                       lineHeight: 1.06,
                       width: "100%",
@@ -310,7 +311,7 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
                         fontFamily: "'Baloo 2', sans-serif",
                         fontWeight: 800,
                         fontSize: Math.max(9, Math.min(n.visualRadius * 0.22, 12)),
-                        color: "#0C1B26",
+                        color: theme.night,
                         opacity: 0.62,
                         lineHeight: 1,
                         whiteSpace: "nowrap",
@@ -334,7 +335,7 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
                     display: "grid",
                     placeItems: "center",
                     background: "rgba(12,27,38,0.88)",
-                    color: "#E8F3F4",
+                    color: theme.text,
                     border: "1px solid rgba(255,255,255,0.4)",
                     fontFamily: "'Baloo 2', sans-serif",
                     fontWeight: 800,

@@ -3,6 +3,7 @@ import { Stepper, ScaleSelector } from "./controls.jsx";
 import { habitHistoryFor, lastDoneLabel, completionImpact } from "../model/habitHistory.js";
 import { timeAgo, historyDate } from "../utils/format.js";
 import { now as clockNow } from "../utils/clock.js";
+import { theme } from "../theme.js";
 
 const importanceText = (level) => ["", "Low", "Mild", "Medium", "High", "Critical"][level];
 const effortText = (level) => ["", "Very easy", "Easy", "Moderate", "Hard", "Very hard"][level];
@@ -42,7 +43,7 @@ export function HabitEditor({ value, onChange, completions }) {
         value={value.name}
         placeholder="Habit name"
         onChange={(event) => onChange({ name: event.target.value })}
-        style={{ width: "100%", background: "#0F2530", border: "1px solid #1E4152", borderRadius: 12, padding: "12px 14px", color: "#E8F3F4", fontSize: 15, fontFamily: "inherit", marginBottom: 6 }}
+        style={{ width: "100%", background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: "12px 14px", color: theme.text, fontSize: 15, fontFamily: "inherit", marginBottom: 6 }}
       />
       <ScaleSelector
         label="Importance"
@@ -67,30 +68,30 @@ export function HabitEditor({ value, onChange, completions }) {
       <Stepper label="Quota" value={value.quota} min={1} max={20} onChange={(quota) => onChange({ quota })} format={(n) => `${n}×`} />
       <Stepper label="Per (days)" value={value.periodDays} min={1} max={60} onChange={(periodDays) => onChange({ periodDays })} format={(n) => `${n}d`} />
 
-      <div style={{ marginTop: 4, marginBottom: 14, padding: "10px 14px", background: "#102733", border: "1px solid #1A3B49", borderRadius: 12, color: "#5FE0BB", fontSize: 13.5, fontWeight: 600 }}>
+      <div style={{ marginTop: 4, marginBottom: 14, padding: "10px 14px", background: theme.night, border: `1px solid ${theme.surfaceRaised}`, borderRadius: 12, color: theme.zoneTop, fontSize: 13.5, fontWeight: 600 }}>
         This means: {cadenceLabel(value.quota, value.periodDays)}
       </div>
 
       {value.id && (
-        <section style={{ marginTop: 10, paddingTop: 14, borderTop: "1px solid #244653" }}>
+        <section style={{ marginTop: 10, paddingTop: 14, borderTop: `1px solid ${theme.borderStrong}` }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
             <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 700 }}>History</div>
-            <div style={{ color: "#7FA3AC", fontSize: 11.5 }}>
+            <div style={{ color: theme.textMuted, fontSize: 11.5 }}>
               {history.length} entr{history.length === 1 ? "y" : "ies"} · {lastDoneLabel(history[0], clockNow())}
             </div>
           </div>
           {history.length === 0 ? (
-            <div style={{ background: "#102733", border: "1px solid #1A3B49", borderRadius: 12, padding: "12px 14px", color: "#7FA3AC", fontSize: 13 }}>
+            <div style={{ background: theme.night, border: `1px solid ${theme.surfaceRaised}`, borderRadius: 12, padding: "12px 14px", color: theme.textMuted, fontSize: 13 }}>
               No completions logged yet.
             </div>
           ) : (
-            <div style={{ maxHeight: 220, overflowY: "auto", background: "#102733", border: "1px solid #1A3B49", borderRadius: 12, padding: "0 12px" }}>
+            <div style={{ maxHeight: 220, overflowY: "auto", background: theme.night, border: `1px solid ${theme.surfaceRaised}`, borderRadius: 12, padding: "0 12px" }}>
               {history.map((entry) => (
-                <div key={entry.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid #1A3542" }}>
-                  <div style={{ color: "#7FA3AC", fontSize: 11.5 }}>
+                <div key={entry.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: `1px solid ${theme.border}` }}>
+                  <div style={{ color: theme.textMuted, fontSize: 11.5 }}>
                     {historyDate(entry.at)} · {timeAgo(entry.at)}
                   </div>
-                  <div style={{ color: "#5FE0BB", fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" }}>
+                  <div style={{ color: theme.zoneTop, fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" }}>
                     {completionImpact(value, completions, entry)}
                   </div>
                 </div>
