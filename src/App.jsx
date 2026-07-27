@@ -7,13 +7,10 @@ import {
   removePendingOperations,
   INTRO_KEY,
 } from "./storage.js";
-import {
-  effortZoneThresholds,
-  pointsInActivePeriod,
-  soloStreak,
-  suggestCombo,
-  weeklyPoints,
-} from "./logModel.js";
+// Only effortZoneThresholds survives from logModel here, for the Chores tab's
+// (Task 8 territory) "green zone starts at" points stepper — the Log tab no
+// longer touches points at all.
+import { effortZoneThresholds } from "./logModel.js";
 import {
   habitHistoryFor,
   completionImpact,
@@ -28,10 +25,11 @@ import { realNow, now, setTimeOffset } from "./utils/clock.js";
 import { Modal } from "./components/Modal.jsx";
 import { btnStyle, Stepper, ScaleSelector } from "./components/controls.jsx";
 import { ChoreFields } from "./components/ChoreFields.jsx";
-import { ProgressRow } from "./components/bars.jsx";
+import RhythmBar from "./components/RhythmBar.jsx";
 import { OwnerNameEditor } from "./components/OwnerNameEditor.jsx";
 import { bubbleHue } from "./components/BubbleField.jsx";
 import BubblesScreen from "./screens/BubblesScreen.jsx";
+import LogScreen from "./screens/LogScreen.jsx";
 
 // HabitBubbles: a personal habit ecosystem.
 // Bubbles swell as opportunities come due. Tap to complete, drag to rearrange.
@@ -57,7 +55,6 @@ export default function HabitBubbles() {
   const [simData, setSimData] = useState(null);
   const [simOpen, setSimOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
-  const [suggestionSeed, setSuggestionSeed] = useState(0);
   const [healthPulse, setHealthPulse] = useState(0);
   const prevHealthRef = useRef(null);
   const knownCreditedCompletionIdsRef = useRef(null);
@@ -76,34 +73,14 @@ export default function HabitBubbles() {
   // returning to today. This keeps simulated play out of saved data.
   const view = simDays > 0 && simData ? simData : data;
 
-  const logStats = useMemo(() => {
+  // Only feeds the Chores tab's (Task 8 territory) points-based "green zone
+  // starts at" stepper — the chore-era weeklyGoal scale, unrelated to rhythm.
+  const settingsThresholds = useMemo(() => {
     if (!view) return null;
-    const at = now();
     const goal = Number(view.settings?.weeklyGoal) || 14;
-    const points = weeklyPoints(view.completions, "owner", [], at);
     const { greenMin } = effortZoneThresholds(goal, view.settings?.greenStart);
-    const previousPoints = pointsInActivePeriod(view.completions, "owner", [], at, 1);
-    const streak = soloStreak(view.completions, greenMin, [], at);
-    // suggestCombo ranks by logModel's chore-era `difficulty`/urgency fields,
-    // which habits no longer carry (Task 7 rewrites this into a rhythm-based
-    // suggestion). Passing habits through still degrades safely to "no
-    // suggestion" rather than crashing.
-    const gap = Math.max(0, greenMin - points);
-    const suggestion = gap > 0
-      ? suggestCombo(view.habits, gap, {}, suggestionSeed)
-      : null;
-
-    return {
-      goal,
-      greenMin,
-      points,
-      previousPoints,
-      previousHasActivity: previousPoints > 0,
-      streak,
-      gap,
-      suggestion,
-    };
-  }, [view, suggestionSeed, simDays]);
+    return { goal, greenMin };
+  }, [view]);
 
   const showToast = useCallback((msg, undoFn = null) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -296,16 +273,7 @@ export default function HabitBubbles() {
   }
 
   const { settings } = view;
-  const {
-    goal,
-    greenMin,
-    points,
-    previousPoints,
-    previousHasActivity,
-    streak,
-    gap,
-    suggestion,
-  } = logStats;
+  const { goal, greenMin } = settingsThresholds;
   // Rhythm replaces the old chore-era healthScore. `rhythm` is null while
   // every habit is still warming up (its first period hasn't elapsed) — that
   // must render as a distinct "warming up" state, not a fabricated 0%, or a
@@ -315,23 +283,10 @@ export default function HabitBubbles() {
   const rhythmZoneInfo = rhythm == null ? null : rhythmZone(rhythm, settings.greenStart);
   const healthPct = rhythm == null ? null : Math.round(rhythm * 100);
   const healthColor = !rhythmZoneInfo ? "#7FA3AC" : rhythmZoneInfo.key === "green" ? "#5FE0BB" : rhythmZoneInfo.key === "amber" ? "#FFC65E" : "#FF8B7B";
-  const recent = [...view.completions].sort((a, b) => b.at - a.at).slice(0, 30);
   const choreHistories = new Map(
     view.habits.map((habit) => [habit.id, habitHistoryFor(view.completions, habit.id)])
   );
   const editChoreHistory = editChore?.id ? choreHistories.get(editChore.id) || [] : [];
-  // TRANSITIONAL: still drives the Log tab's chore-era "Shuffle ideas" button
-  // (suggestCombo). Task 7 replaces that panel; not touched here.
-  const canShuffleSuggestions = !!suggestion && view.habits.length > 0;
-  const shuffleSuggestions = () => {
-    if (!canShuffleSuggestions) return;
-    setSuggestionSeed((seed) => seed + 1);
-  };
-  const previousRecap = !previousHasActivity
-    ? ""
-    : previousPoints >= greenMin
-    ? "Previous 7 days: you stayed green 🌱"
-    : `Previous 7 days: ${previousPoints} points`;
 
   const impLabel = (v) => ["", "Low", "Mild", "Medium", "High", "Critical"][v];
 
@@ -343,7 +298,6 @@ export default function HabitBubbles() {
         @keyframes pop { 0%{transform:scale(1.15)} 45%{transform:scale(0.82)} 100%{transform:scale(1)} }
         @keyframes sparkleUp { 0%{opacity:1; transform:translateY(0) scale(0.7)} 100%{opacity:0; transform:translateY(-26px) scale(1.25)} }
         @keyframes barSwell { 0%{transform:scaleY(1)} 25%{transform:scaleY(1.9)} 55%{transform:scaleY(1.25)} 100%{transform:scaleY(1)} }
-        @keyframes greenArrival { 0%{transform:scale(0.82); box-shadow:0 0 0 #5FE0BB00} 55%{transform:scale(1.08); box-shadow:0 0 14px #5FE0BB66} 100%{transform:scale(1); box-shadow:0 0 0 #5FE0BB00} }
         @keyframes wilt { 0%,100%{transform:rotate(-6deg) translateY(1px)} 50%{transform:rotate(-10deg) translateY(3px)} }
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
         * { box-sizing: border-box; margin: 0; }
@@ -396,30 +350,7 @@ export default function HabitBubbles() {
                   {healthPct}%
                 </span>
               </div>
-              <div style={{ position: "relative", height: 10, borderRadius: 6, background: "#0F2530", border: "1px solid #1E4152", overflow: "visible" }}>
-                <div
-                  key={`health-fill-${healthPulse}`}
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: `${healthPct}%`,
-                    borderRadius: 6,
-                    background: healthPulse
-                      ? "linear-gradient(to right, #5FE0BB99, #5FE0BB)"
-                      : `linear-gradient(to right, ${healthColor}99, ${healthColor})`,
-                    boxShadow: healthPulse
-                      ? "0 0 20px #5FE0BBCC"
-                      : healthPct >= 80
-                      ? `0 0 10px ${healthColor}88`
-                      : "none",
-                    animation: healthPulse ? "barSwell 1.4s ease-out" : "none",
-                    transformOrigin: "left center",
-                    transition: "width 0.8s ease, background 0.5s ease, box-shadow 0.5s ease",
-                  }}
-                />
-              </div>
+              <RhythmBar score={rhythm} greenStart={settings.greenStart} height={10} pulse={!!healthPulse} pulseSeq={healthPulse} />
             </>
           )}
         </div>
@@ -438,88 +369,13 @@ export default function HabitBubbles() {
       )}
 
       {tab === "log" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 26px" }}>
-          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 23, fontWeight: 700, marginTop: 4 }}>Last 7 days</div>
-          <div style={{ color: "#7FA3AC", fontSize: 13, lineHeight: 1.4, marginBottom: 12 }}>
-            What you&apos;ve done over your last 7 active days. Keep it in the green.
-          </div>
-
-          <div style={{ background: "linear-gradient(145deg, #173746, #122B37)", border: "1px solid #245064", borderRadius: 18, padding: "0 16px 12px", marginBottom: 12 }}>
-            <ProgressRow label={settings.ownerName} points={points} goal={goal} hue="#5FE0BB" zoned greenStart={settings.greenStart} prominent />
-            <div style={{ color: "#7FA3AC", fontSize: 11.5, textAlign: "center", padding: "2px 0 10px" }}>
-              Full scale: {goal} points · Green starts at {greenMin}
-            </div>
-            {(previousRecap || streak >= 2) && (
-              <div style={{ color: "#9FBCC4", fontSize: 12, lineHeight: 1.45, borderTop: "1px solid #244653", paddingTop: 10 }}>
-                {previousRecap}
-                {previousRecap && streak >= 2 ? " · " : ""}
-                {streak >= 2 ? `🔥 ${streak}-period streak` : ""}
-              </div>
-            )}
-          </div>
-
-          {
-            <div style={{ background: gap === 0 ? "#153D35" : "#2B2A19", border: `1px solid ${gap === 0 ? "#297261" : "#5B5327"}`, borderRadius: 18, padding: 16, marginBottom: 16 }}>
-              {gap === 0 ? (
-                <>
-                  <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 17, fontWeight: 700, color: "#5FE0BB" }}>Your tally is in the green! 🌱</div>
-                  <div style={{ fontSize: 12, color: "#A8CFC5", marginTop: 3 }}>Nice work keeping your routine moving.</div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 17, fontWeight: 700, color: "#FFC65E" }}>
-                    You&apos;re {gap} point{gap === 1 ? "" : "s"} from green 🎯
-                  </div>
-                  {suggestion ? (
-                    <>
-                      <div style={{ color: "#E8F3F4", fontSize: 14, lineHeight: 1.5, marginTop: 8 }}>
-                        Try: {suggestion.chores.map((chore) => `${chore.name} (${chore.effort})`).join(" + ")}
-                      </div>
-                      <div style={{ color: "#B9D2D8", fontSize: 12, marginTop: 3 }}>
-                        {suggestion.reachesGap
-                          ? `= ${suggestion.total} points`
-                          : `This gets you ${suggestion.total} points closer`}
-                      </div>
-                      <button
-                        onClick={shuffleSuggestions}
-                        style={{ ...btnStyle("transparent", "#FFC65E"), padding: "8px 0 0", fontSize: 13 }}
-                      >
-                        🎲 Shuffle ideas
-                      </button>
-                    </>
-                  ) : (
-                    <div style={{ color: "#B9D2D8", fontSize: 13, marginTop: 6 }}>Pick any chore that needs attention to move closer.</div>
-                  )}
-                </>
-              )}
-            </div>
-          }
-
-          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Recent activity</div>
-          {recent.length === 0 && <div style={{ color: "#7FA3AC", fontSize: 14 }}>Nothing logged yet. Tap a bubble to get started.</div>}
-          {recent.map((c) => (
-            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #1A3542" }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>
-                  {c.habitName}
-                </div>
-                <div style={{ fontSize: 12, color: "#7FA3AC" }}>
-                  {timeAgo(c.at)}
-                </div>
-              </div>
-              <div style={{ fontSize: 13, color: "#5FE0BB", fontWeight: 700, whiteSpace: "nowrap" }}>
-                {completionImpact(view.habits.find((h) => h.id === c.habitId) || {}, view.completions, c)}
-              </div>
-              <button
-                onClick={() => removeCompletion(c)}
-                aria-label={`Delete ${c.habitName}`}
-                style={{ ...btnStyle("#0F2530", "#FF8B7B"), padding: "5px 10px", fontSize: 13, border: "1px solid #1E4152", lineHeight: 1, flexShrink: 0 }}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
+        <LogScreen
+          habits={view.habits}
+          completions={view.completions}
+          rhythmWindowDays={settings.rhythmWindowDays}
+          greenStart={settings.greenStart}
+          onRemoveCompletion={removeCompletion}
+        />
       )}
 
       {tab === "chores" && (
