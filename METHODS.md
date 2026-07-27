@@ -10,9 +10,11 @@
 reference only.** It was built from rev. 2 of this document and is not maintained.
 Two of its findings were adopted here: the attainment window origin (§3.3) and
 keyboard/dialog accessibility. Its rolling credit cap was deliberately **not** adopted —
-see §3.3.2. Before either build is ever deployed alongside the other, the reference copy
-must be given distinct storage keys and a distinct Workbox `cacheId`; both currently use
-`habitbubbles:data:habitbubbles-local` and `cacheId: "habitbubbles"`.
+see §3.3.2. **The co-deployment hazard is closed:** the reference copy was given distinct
+storage keys and a distinct Workbox `cacheId` on 2026-07-27
+(`habitbubbles-codex:` prefix, `habitbubbles-codex-local`, `cacheId: "habitbubbles-codex"`,
+manifest "HabitBubbles (Codex)"). Verified: the two built bundles now share no identity
+string. This app keeps the plain `habitbubbles` namespace.
 
 This document is the design record for HabitBubbles, a third app in the ChoreBubbles
 family. It specifies the product model, the mathematics, the architecture, and the
