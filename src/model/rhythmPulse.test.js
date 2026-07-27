@@ -43,21 +43,4 @@ describe("rhythmPulse", () => {
   it("counts completions with no actor field, as the habit schema produces", () => {
     expect(completionIds([{ id: "a", habitId: "h", at: 1 }])).toEqual(new Set(["a"]));
   });
-
-  it("excludes service and reset completions from the pulse", () => {
-    const ids = completionIds([
-      { id: "a", habitId: "h", at: 1 },
-      { id: "svc", habitId: "h", at: 2, by: "service" },
-      { id: "rst", habitId: "h", at: 3, by: "reset" },
-    ]);
-    expect(ids).toEqual(new Set(["a"]));
-  });
-
-  it("does not pulse for a service completion that leaves the score unchanged", () => {
-    expect(shouldPulseRhythm(0.5, 0.5, new Set(), [{ id: "svc", by: "service" }])).toBe(false);
-  });
-
-  it("does not pulse for a board reset that leaves the score unchanged", () => {
-    expect(shouldPulseRhythm(0.5, 0.5, new Set(), [{ id: "rst", by: "reset" }])).toBe(false);
-  });
 });

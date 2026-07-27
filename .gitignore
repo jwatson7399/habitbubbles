@@ -1,6 +1,3 @@
 node_modules
 dist
 .DS_Store
-
-# Local copy of the schema with real household emails — never commit
-supabase-schema.local.sql

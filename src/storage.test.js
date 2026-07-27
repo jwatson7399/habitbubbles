@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { LOCAL_KEY, PENDING_KEY, INTRO_KEY } from "./storage.js";
+import { LOCAL_KEY, INTRO_KEY } from "./storage.js";
 import { DATA_ID, SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 describe("storage identity isolation", () => {
-  const keys = [LOCAL_KEY, PENDING_KEY, INTRO_KEY];
+  const keys = [LOCAL_KEY, INTRO_KEY];
 
   it("namespaces every key under habitbubbles:", () => {
     for (const key of keys) expect(key.startsWith("habitbubbles:")).toBe(true);
@@ -23,8 +23,8 @@ describe("storage identity isolation", () => {
     expect(SUPABASE_ANON_KEY).toBe("");
   });
 
-  it("keeps all three keys distinct", () => {
-    expect(new Set(keys).size).toBe(3);
+  it("keeps both keys distinct", () => {
+    expect(new Set(keys).size).toBe(2);
   });
 });
 

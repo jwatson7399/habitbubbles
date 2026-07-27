@@ -1,12 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import {
-  getRecord,
-  saveRecord,
-  getPendingOperations,
-  enqueueOperation,
-  removePendingOperations,
-  INTRO_KEY,
-} from "./storage.js";
+import { getRecord, saveRecord, INTRO_KEY } from "./storage.js";
 import { completionIds, shouldPulseRhythm } from "./model/rhythmPulse.js";
 import { rhythmScore, rhythmZone } from "./model/rhythmModel.js";
 import { DAY, uid, defaultData, normalizeData, applyOperation } from "./model/habitData.js";
@@ -42,15 +35,13 @@ export default function HabitBubbles() {
   const toastTimer = useRef(null);
   const popTimer = useRef(null);
   const dataRef = useRef(null);
-  const busyRef = useRef(false);
-  const flushPromiseRef = useRef(null);
   const simDaysRef = useRef(0);
   dataRef.current = data;
   simDaysRef.current = simDays;
 
-  // While the time machine is running, edits (popping bubbles, service)
-  // apply to a local sandbox copy that is never synced and is discarded on
-  // returning to today. This keeps simulated play out of saved data.
+  // While the time machine is running, edits (completing habits) apply to a
+  // local sandbox copy that is never saved and is discarded on returning to
+  // today. This keeps simulated play out of saved data.
   const view = simDays > 0 && simData ? simData : data;
 
   const showToast = useCallback((msg, undoFn = null) => {
@@ -59,52 +50,16 @@ export default function HabitBubbles() {
     toastTimer.current = setTimeout(() => setToast(null), 6000);
   }, []);
 
-  const flushQueue = useCallback(async () => {
-    if (flushPromiseRef.current) return flushPromiseRef.current;
-
-    const task = (async () => {
-      busyRef.current = true;
-      try {
-        const pending = getPendingOperations();
-        if (pending.length === 0) {
-          setSyncState("");
-          return true;
-        }
-
-        const current = getRecord();
-        const merged = pending.reduce(applyOperation, normalizeData(current));
-        saveRecord(merged);
-        removePendingOperations(pending.map((item) => item.id));
-        setData(merged);
-        setSyncState("saved locally");
-        return true;
-      } catch (error) {
-        setSyncState("saved locally");
-        return false;
-      } finally {
-        busyRef.current = false;
-        flushPromiseRef.current = null;
-      }
-    })();
-
-    flushPromiseRef.current = task;
-    return task;
-  }, []);
-
-  const load = useCallback(async () => {
-    if (busyRef.current) return;
+  const load = useCallback(() => {
     try {
       const stored = getRecord();
-      const pending = getPendingOperations();
-      const visible = pending.reduce(applyOperation, normalizeData(stored));
-      setData(visible);
+      setData(normalizeData(stored));
       setSyncState("");
-      if (pending.length > 0) flushQueue();
     } catch (error) {
       setSyncState(error.message || "Unable to load your habits.");
       if (!dataRef.current) setData(defaultData());
     }
-  }, [flushQueue]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -118,15 +73,12 @@ export default function HabitBubbles() {
   }, [data, simDays]);
 
   useEffect(() => {
-    const refresh = () => {
-      load();
-      flushQueue();
-    };
+    const refresh = () => load();
     const iv = setInterval(refresh, 20000);
     const onVis = () => { if (!document.hidden) refresh(); };
     document.addEventListener("visibilitychange", onVis);
     return () => { clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
-  }, [load, flushQueue]);
+  }, [load]);
 
   const commit = useCallback((operation) => {
     // In the time machine, stamp with simulated "now" and keep edits local.
@@ -136,11 +88,11 @@ export default function HabitBubbles() {
       return true;
     }
     const stamped = { ...operation, id: operation.id || uid(), createdAt: realNow() };
-    enqueueOperation(stamped);
-    setData((current) => applyOperation(current, stamped));
-    flushQueue();
+    const next = applyOperation(dataRef.current, stamped);
+    saveRecord(next);
+    setData(next);
     return true;
-  }, [flushQueue]);
+  }, []);
 
   const dismissIntro = () => {
     try { localStorage.setItem(INTRO_KEY, "1"); } catch {}
@@ -161,8 +113,8 @@ export default function HabitBubbles() {
     commit({ type: "completion:remove", ids: view.completions.map((item) => item.id) });
   };
 
-  // Remove a single logged completion: drops it from the activity log, takes its
-  // effort points back off, and regrows that chore's bubble. Undoable.
+  // Remove a single logged completion: drops it from the activity log and
+  // regrows that habit's bubble. Undoable.
   const removeCompletion = (entry) => {
     if (!commit({ type: "completion:remove", ids: [entry.id] })) return;
     showToast(`Removed ${entry.habitName}`, () => {
@@ -339,7 +291,7 @@ export default function HabitBubbles() {
         />
       )}
 
-      {tab === "chores" && (
+      {tab === "habits" && (
         <>
           <HabitsScreen
             habits={view.habits}
@@ -388,7 +340,7 @@ export default function HabitBubbles() {
         {[
           { id: "bubbles", label: "Bubbles", icon: "🫧" },
           { id: "log", label: "The Log", icon: "📊" },
-          { id: "chores", label: "Habits", icon: "📝" },
+          { id: "habits", label: "Habits", icon: "📝" },
         ].map((t) => (
           <button
             key={t.id}
