@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import * as d3 from "d3";
 import { clampBubbleCenter, releaseBubbleNode } from "../bubblePhysics.js";
-import { bubbleHitDiameter, rankBubbleTargets, usesCompactBubbleLabel } from "../bubblePresentation.js";
-import { activeDaysSinceDone, urgencyOf } from "../model/choreMath.js";
+import { usesCompactBubbleLabel } from "../bubblePresentation.js";
+import { habitBubbleNodes } from "../model/bubbleSizing.js";
+import { now as clockNow } from "../utils/clock.js";
 
 // Soft pastel color spread evenly around the wheel via the golden angle, so
-// each bubble gets a distinct hue and the range keeps widening with more chores.
+// each bubble gets a distinct hue and the range keeps widening with more habits.
 // Returns 6-digit hex so the existing `${hue}AA` alpha suffixes keep working.
 function hslToHex(h, s, l) {
   s /= 100;
@@ -21,7 +22,7 @@ function hslToHex(h, s, l) {
 export const bubbleHue = (i) => hslToHex((i * 137.508) % 360, 62, 68);
 
 // ---------- Bubble field ----------
-export default function BubbleField({ chores, completions, pauses, onTap, popId, simDays, suggestedIds }) {
+export default function BubbleField({ habits, completions, onTap, popId, simDays, suggestedIds }) {
   const wrapRef = useRef(null);
   const [size, setSize] = useState({ w: 360, h: 480 });
   const [nodes, setNodes] = useState([]);
@@ -39,33 +40,23 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
   }, []);
 
   const targets = useMemo(() => {
-    const n = Math.max(chores.length, 1);
-    // Size bubbles so the set comfortably fills ~55% of the container area
-    const areaBudget = (size.w * size.h * 0.55) / n;
-    const baseR = Math.sqrt(areaBudget / Math.PI);
-    const ranked = rankBubbleTargets(
-      chores.map((ch, i) => ({
-        id: ch.id,
-        chore: ch,
-        importance: ch.importance,
-        urgency: urgencyOf(ch, completions, pauses),
-        ageDays: activeDaysSinceDone(ch, completions, pauses),
-        hue: bubbleHue(i),
-      })),
-      baseR
-    );
+    // Sizing is absolute (habitBubbleNodes), never normalized against the
+    // field. Pressure is already a bounded 0..1 quantity, so it doubles as
+    // the layout "prominence" that pulls due habits toward the center —
+    // that's a placement choice, not a sizing one.
+    const bubbleNodes = habitBubbleNodes(habits, completions, clockNow());
     const orbit = Math.min(size.w, size.h) * 0.38;
-    return ranked.map((item, index) => {
+    return bubbleNodes.map((item, index) => {
       const angle = index * 2.399963229728653;
-      const distance = orbit * (1 - item.prominence);
+      const distance = orbit * (1 - item.pressure);
       return {
         ...item,
-        r: item.radius,
+        hue: bubbleHue(index),
         focusX: size.w / 2 + Math.cos(angle) * distance,
         focusY: size.h / 2 + Math.sin(angle) * distance * 0.72,
       };
     });
-  }, [chores, completions, pauses, size, simDays]);
+  }, [habits, completions, size, simDays]);
 
   useEffect(() => {
     const prev = new Map(nodesRef.current.map((n) => [n.id, n]));
@@ -73,7 +64,20 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
     const ring = Math.min(size.w, size.h) * 0.32;
     const next = targets.map((t, i) => {
       const p = prev.get(t.id);
-      if (p) return Object.assign(p, { r: t.r, chore: t.chore, urgency: t.urgency, prominence: t.prominence, priority: t.priority, focusX: t.focusX, focusY: t.focusY, hue: t.hue });
+      if (p) {
+        return Object.assign(p, {
+          habit: t.habit,
+          pressure: t.pressure,
+          priority: t.priority,
+          mathRadius: t.mathRadius,
+          visualRadius: t.visualRadius,
+          interactRadius: t.interactRadius,
+          collisionRadius: t.collisionRadius,
+          focusX: t.focusX,
+          focusY: t.focusY,
+          hue: t.hue,
+        });
+      }
       // New bubbles enter near their priority orbit instead of stacking.
       const angle = (i / Math.max(count, 1)) * Math.PI * 2;
       return {
@@ -87,25 +91,30 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
     const priorityOrbit = Math.min(size.w, size.h) * 0.38;
     const sim = d3
       .forceSimulation(next)
-      .force("x", d3.forceX((d) => d.focusX).strength((d) => 0.018 + 0.055 * d.prominence))
-      .force("y", d3.forceY((d) => d.focusY).strength((d) => 0.02 + 0.06 * d.prominence))
+      .force("x", d3.forceX((d) => d.focusX).strength((d) => 0.018 + 0.055 * d.pressure))
+      .force("y", d3.forceY((d) => d.focusY).strength((d) => 0.02 + 0.06 * d.pressure))
       .force(
         "priorityOrbit",
         d3.forceRadial(
-          (d) => priorityOrbit * (1 - d.prominence),
+          (d) => priorityOrbit * (1 - d.pressure),
           size.w / 2,
           size.h / 2
-        ).strength((d) => 0.1 + 0.35 * d.prominence)
+        ).strength((d) => 0.1 + 0.35 * d.pressure)
       )
-      .force("collide", d3.forceCollide((d) => d.r + 7).strength(1).iterations(3))
+      // Collision — and boundary clamping below — must derive from
+      // collisionRadius, never visualRadius. At pressure 0 the visual/math
+      // radius is exactly zero and many habits can sit there at once; sizing
+      // collision from the invisible mathematical radius is what let
+      // 44px tap targets overlap so only the topmost bubble was tappable.
+      .force("collide", d3.forceCollide((d) => d.collisionRadius).strength(1).iterations(3))
       .velocityDecay(0.28)
       .alpha(0.9)
       .alphaDecay(0.012)
       .alphaMin(0.001)
       .on("tick", () => {
         for (const n of next) {
-          n.x = Math.max(n.r + 4, Math.min(size.w - n.r - 4, n.x));
-          n.y = Math.max(n.r + 4, Math.min(size.h - n.r - 4, n.y));
+          n.x = Math.max(n.collisionRadius, Math.min(size.w - n.collisionRadius, n.x));
+          n.y = Math.max(n.collisionRadius, Math.min(size.h - n.collisionRadius, n.y));
         }
         setNodes([...next]);
       });
@@ -157,8 +166,8 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
       d.lastX = x;
       d.lastY = y;
       d.lastTime = e.timeStamp;
-      node.fx = clampBubbleCenter(x + d.offsetX, size.w, node.r);
-      node.fy = clampBubbleCenter(y + d.offsetY, size.h, node.r);
+      node.fx = clampBubbleCenter(x + d.offsetX, size.w, node.collisionRadius);
+      node.fy = clampBubbleCenter(y + d.offsetY, size.h, node.collisionRadius);
     }
   };
 
@@ -172,7 +181,7 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
     releaseBubbleNode(node, d, size, simRef.current);
 
     setNodes([...nodesRef.current]);
-    if (allowTap && !d.moved) onTap(node.chore);
+    if (allowTap && !d.moved) onTap(node.habit);
   };
 
   const onPointerUp = (e, node) => {
@@ -191,25 +200,27 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
 
   return (
     <div ref={wrapRef} style={{ position: "relative", flex: 1, overflow: "hidden", touchAction: "none" }}>
-      {chores.length === 0 && (
+      {(!habits || habits.length === 0) && (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#7FA3AC", fontSize: 15, textAlign: "center", padding: 32 }}>
-          No chores yet. Head to the Chores tab to add your list.
+          No habits yet. Head to the Habits tab to add your list.
         </div>
       )}
       {nodes.map((n) => {
-        const due = n.urgency >= 1;
-        const overdue = n.urgency >= 1.5;
+        const due = n.pressure >= 1;
+        const overdue = n.priority >= 0.8;
         const suggested = suggestedIds?.has(n.id);
-        const compactLabel = usesCompactBubbleLabel(n.r);
-        const hitDiameter = bubbleHitDiameter(n.r);
-        const showInlineLabel = n.r >= 14;
+        // Labels and hit target route off visualRadius/interactRadius, never
+        // the collision radius used by d3.forceCollide above.
+        const compactLabel = usesCompactBubbleLabel(n.visualRadius);
+        const hitDiameter = n.interactRadius * 2;
+        const showInlineLabel = n.visualRadius >= 14;
         const bubbleShadow = due
           ? `0 0 ${overdue ? 26 : 14}px ${n.hue}${overdue ? "AA" : "66"}, inset 0 0 12px rgba(255,255,255,0.25)`
           : "inset 0 0 10px rgba(255,255,255,0.18)";
         return (
           <div
             key={n.id}
-            aria-label={`${n.chore.name}, ${n.chore.difficulty} point${n.chore.difficulty === 1 ? "" : "s"}${suggested ? ", suggested chore" : ""}`}
+            aria-label={`${n.habit.name}, importance ${n.habit.importance}${suggested ? ", suggested habit" : ""}`}
             data-label-mode={!showInlineLabel ? "hidden" : compactLabel ? "compact" : "full"}
             onPointerDown={(e) => onPointerDown(e, n)}
             onPointerMove={(e) => onPointerMove(e, n)}
@@ -232,14 +243,14 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
                 ? 6
                 : suggested
                 ? 5
-                : 1 + Math.round(n.prominence * 3),
+                : 1 + Math.round(n.pressure * 3),
             }}
           >
             <div
               style={{
                 position: "relative",
-                width: n.r * 2,
-                height: n.r * 2,
+                width: n.visualRadius * 2,
+                height: n.visualRadius * 2,
                 flexShrink: 0,
                 borderRadius: "50%",
                 background: `radial-gradient(circle at 32% 30%, ${n.hue}F5, ${n.hue}AA 60%, ${n.hue}66)`,
@@ -279,7 +290,7 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
                     style={{
                       fontFamily: "'Baloo 2', sans-serif",
                       fontWeight: 700,
-                      fontSize: Math.max(8, Math.min(n.r * 0.28, 16)),
+                      fontSize: Math.max(8, Math.min(n.visualRadius * 0.28, 16)),
                       color: "#0C1B26",
                       textAlign: "center",
                       lineHeight: 1.06,
@@ -291,21 +302,21 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
                       overflowWrap: "break-word",
                     }}
                   >
-                    {n.chore.name}
+                    {n.habit.name}
                   </span>
                   {!compactLabel && (
                     <span
                       style={{
                         fontFamily: "'Baloo 2', sans-serif",
                         fontWeight: 800,
-                        fontSize: Math.max(9, Math.min(n.r * 0.22, 12)),
+                        fontSize: Math.max(9, Math.min(n.visualRadius * 0.22, 12)),
                         color: "#0C1B26",
                         opacity: 0.62,
                         lineHeight: 1,
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {n.chore.difficulty} pt{n.chore.difficulty === 1 ? "" : "s"}
+                      importance {n.habit.importance}
                     </span>
                   )}
                 </div>
@@ -317,8 +328,8 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
                     position: "absolute",
                     right: "7%",
                     bottom: "6%",
-                    width: Math.max(12, Math.min(n.r * 0.56, 20)),
-                    height: Math.max(12, Math.min(n.r * 0.56, 20)),
+                    width: Math.max(12, Math.min(n.visualRadius * 0.56, 20)),
+                    height: Math.max(12, Math.min(n.visualRadius * 0.56, 20)),
                     borderRadius: "50%",
                     display: "grid",
                     placeItems: "center",
@@ -332,7 +343,7 @@ export default function BubbleField({ chores, completions, pauses, onTap, popId,
                     pointerEvents: "none",
                   }}
                 >
-                  {n.chore.difficulty}
+                  {n.habit.importance}
                 </span>
               )}
             </div>

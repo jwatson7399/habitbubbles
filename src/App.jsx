@@ -466,7 +466,7 @@ export default function HabitBubbles() {
               🧪 Time machine — tap bubbles to test. Nothing here is saved.
             </div>
           )}
-          <BubbleField chores={view.chores} completions={view.completions} pauses={[]} onTap={(ch) => { setTapWhenDays(0); setTapChore(ch); }} popId={popId} simDays={simDays} suggestedIds={suggestedBubbleIds} />
+          <BubbleField habits={view.habits} completions={view.completions} onTap={(ch) => { setTapWhenDays(0); setTapChore(ch); }} popId={popId} simDays={simDays} suggestedIds={suggestedBubbleIds} />
           <div style={{ padding: "0 20px 10px", display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", gap: 8 }}>
               <button
