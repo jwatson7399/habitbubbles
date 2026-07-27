@@ -1,5 +1,6 @@
 import { DAY } from "./habitData.js";
 import { periodKey, currentPeriodKey } from "./habitPeriods.js";
+import { trackingOrigin } from "./habitSchema.js";
 
 export const DEFAULT_RHYTHM_WINDOW_DAYS = 14;
 
@@ -7,16 +8,13 @@ export const DEFAULT_RHYTHM_WINDOW_DAYS = 14;
 // age test, not a size test: an earlier draft used `expected < 1`, which made a
 // monthly habit (1 x 14/30 = 0.47) permanently report 100%.
 //
-// Warm-up is an age question — has this habit existed long enough to judge? —
-// so it measures from createdAt, not from anchorAt. anchorAt is deliberately
-// offset half a period back to position period boundaries away from the hour
-// the habit is performed, and measuring warm-up from it would silently halve
-// the warm-up window.
+// Warm-up asks whether tracking has run long enough to judge, so it measures
+// from trackingOrigin — which restarts when a habit is unarchived, and is not
+// pulled backwards by anchorAt's half-period offset.
 export function isWarmingUp(habit, now) {
   const period = habit.periodDays * DAY;
   if (!(period > 0)) return true;
-  const origin = Number.isFinite(Number(habit.createdAt)) ? Number(habit.createdAt) : habit.anchorAt;
-  return now - origin < period;
+  return now - trackingOrigin(habit) < period;
 }
 
 // Only completions representing distinct opportunities earn credit. Walking in

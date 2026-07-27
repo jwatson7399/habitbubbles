@@ -32,22 +32,20 @@ export function normalizeHabit(raw, now) {
   };
 }
 
-// Completions before the anchor are rejected rather than clamped: clamping
-// would silently misdate the entry, and allowing it would produce negative
-// period keys and an ill-defined warm-up.
-//
-// Completions before the habit existed are rejected, not clamped: clamping
-// would silently misdate the entry. The bound is createdAt rather than
-// anchorAt, because anchorAt sits half a period earlier by design and must not
-// become a licence to backdate into a time when the habit did not exist.
+// When tracking last started. For a new habit this is createdAt (anchorAt sits
+// half a period earlier by design, to position period boundaries away from the
+// hour the habit is performed). For an unarchived habit it is the resume
+// instant, because unarchiveHabit moves anchorAt forward to now.
+export function trackingOrigin(habit) {
+  const created = Number.isFinite(Number(habit.createdAt)) ? Number(habit.createdAt) : habit.anchorAt;
+  return Math.max(habit.anchorAt, created);
+}
+
+// Completions before tracking started are rejected, not clamped: clamping
+// would silently misdate the entry.
 export function canLogCompletion(habit, at) {
   const value = Number(at);
-  if (!Number.isFinite(value)) return false;
-  const earliest = Math.max(
-    habit.anchorAt,
-    Number.isFinite(Number(habit.createdAt)) ? Number(habit.createdAt) : habit.anchorAt
-  );
-  return value >= earliest;
+  return Number.isFinite(value) && value >= trackingOrigin(habit);
 }
 
 export function archiveHabit(habit) {

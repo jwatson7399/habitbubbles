@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { normalizeHabit, canLogCompletion, archiveHabit, unarchiveHabit } from "./habitSchema.js";
-import { creditedCompletions } from "./rhythmModel.js";
+import { creditedCompletions, isWarmingUp, attainment } from "./rhythmModel.js";
 import { DAY } from "./habitData.js";
 
 const NOW = 1750000000000;
@@ -126,5 +126,21 @@ describe("archiving", () => {
     expect(u.archived).toBe(false);
     expect(u.anchorAt).toBe(NOW);
     expect(u.createdAt).toBe(h.createdAt);
+    expect(isWarmingUp(u, NOW)).toBe(true);
+  });
+
+  it("restarts warm-up behaviorally when a long-archived habit resumes", () => {
+    const old = archiveHabit(normalizeHabit({ periodDays: 7, createdAt: NOW - 90 * DAY }, NOW - 90 * DAY));
+    const resumed = unarchiveHabit(old, NOW);
+    expect(isWarmingUp(resumed, NOW)).toBe(true);
+    expect(isWarmingUp(resumed, NOW + 8 * DAY)).toBe(false);
+    expect(attainment(resumed, [], NOW + DAY)).toBeNull();
+  });
+
+  it("does not let a resumed habit be backdated into its archived gap", () => {
+    const old = archiveHabit(normalizeHabit({ periodDays: 7, createdAt: NOW - 90 * DAY }, NOW - 90 * DAY));
+    const resumed = unarchiveHabit(old, NOW);
+    expect(canLogCompletion(resumed, NOW - 30 * DAY)).toBe(false);
+    expect(canLogCompletion(resumed, NOW)).toBe(true);
   });
 });
