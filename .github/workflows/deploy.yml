@@ -1,8 +1,10 @@
 name: Deploy to GitHub Pages
 
+# Manual-only. This repo is private, and GitHub Pages needs a public repo on a
+# free account — an automatic push trigger would fail on every commit. The job
+# below is correct and ready: make the repo public, enable Pages with the
+# GitHub Actions source, then run this workflow (or restore the push trigger).
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
