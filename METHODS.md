@@ -1,7 +1,8 @@
 # HabitBubbles — Design Specification
 
 **Status:** **FINAL — v1.0.** This is the canonical HabitBubbles implementation.
-**Repo:** `~/Claude Code/habitbubbles` → `jwatson7399/habitbubbles` (**private**, not deployed)
+**Repo:** `~/Claude Code/habitbubbles` → `jwatson7399/habitbubbles` (**public**)
+**Live:** https://jwatson7399.github.io/habitbubbles/
 **Date:** 2026-07-27 (rev. 3 — attainment window origin, accessibility)
 **Fork parent:** `chorebubbles-solo` (`f2ff135`)
 **Authors:** designed with Julian; reviewed against Codex critique across four rounds
@@ -16,16 +17,17 @@ storage keys and a distinct Workbox `cacheId` on 2026-07-27
 manifest "HabitBubbles (Codex)"). Verified: the two built bundles now share no identity
 string. This app keeps the plain `habitbubbles` namespace.
 
-**Publishing status.** Pushed to `jwatson7399/habitbubbles` as a **private** repo on
-2026-07-27 — backed up and version-controlled, but nothing is world-readable and Pages is
-not enabled. The deliberate reason: this document names the owner's profession, shift
-pattern and actual habit list, and `STARTER_HABITS` ships that list in source. Going
-public would publish all of it. The Pages workflow is retained but set to
-`workflow_dispatch` only, so it cannot fail on every push while the repo is private.
+**Publishing status.** Public and deployed 2026-07-27 to
+https://jwatson7399.github.io/habitbubbles/ via GitHub Actions Pages.
 
-To publish later: generalise the personal detail here and in `STARTER_HABITS`, make the
-repo public, enable Pages with the GitHub Actions source, then run the workflow. Icons are
-still byte-identical to ChoreBubbles Solo's and should be replaced first.
+Published deliberately **without scrubbing**, at the owner's explicit instruction after the
+tradeoff was spelled out twice. This document names his profession, shift pattern and real
+habit list, and `STARTER_HABITS` ships that list in source — all now world-readable, and
+present throughout the git history, so removing it later would require rewriting all 41
+commits. Recorded here so the decision reads as deliberate rather than accidental.
+
+Icons are still byte-identical to ChoreBubbles Solo's — the three apps are hard to tell
+apart on a home screen. That is the main outstanding polish item.
 
 This document is the design record for HabitBubbles, a third app in the ChoreBubbles
 family. It specifies the product model, the mathematics, the architecture, and the
