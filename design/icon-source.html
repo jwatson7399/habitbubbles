@@ -1,0 +1,85 @@
+<style>
+  html,body { margin:0; background:#222; }
+  .stage { display:block; }
+</style>
+
+<!--
+  HabitBubbles icon — "the climb toward dawn".
+  Four bubbles ascending left-to-right, growing as they rise, warming from ember
+  through amber to dawn gold on the app's indigo night. Keeps the bubble language
+  of the ChoreBubbles family (it is a fork, honestly) while the warm ascending
+  sweep on indigo is unmistakable next to ChoreBubbles' cool centred clump.
+  The rise IS the product: pressure builds, you act, rhythm climbs.
+-->
+
+<svg id="std" class="stage" width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="dawnglow" cx="70%" cy="26%" r="72%">
+      <stop offset="0%"  stop-color="#4A3E8C" stop-opacity="0.95"/>
+      <stop offset="48%" stop-color="#2A2358" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#151033" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+    <radialGradient id="b1" cx="34%" cy="30%" r="78%">
+      <stop offset="0%" stop-color="#F09A96"/><stop offset="100%" stop-color="#D8615C"/>
+    </radialGradient>
+    <radialGradient id="b2" cx="34%" cy="30%" r="78%">
+      <stop offset="0%" stop-color="#F5A886"/><stop offset="100%" stop-color="#E37E52"/>
+    </radialGradient>
+    <radialGradient id="b3" cx="34%" cy="30%" r="78%">
+      <stop offset="0%" stop-color="#F8C185"/><stop offset="100%" stop-color="#EE9C46"/>
+    </radialGradient>
+    <radialGradient id="b4" cx="34%" cy="30%" r="78%">
+      <stop offset="0%" stop-color="#FFEBC4"/><stop offset="100%" stop-color="#FFCF74"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="#151033"/>
+  <rect width="512" height="512" fill="url(#dawnglow)"/>
+
+  <g id="art">
+    <!-- outer glows, warmest brightest -->
+    <g filter="url(#soft)" opacity="0.55">
+      <circle cx="100" cy="420" r="34" fill="#E2726E"/>
+      <circle cx="160" cy="360" r="52" fill="#EA8A63"/>
+      <circle cx="250" cy="290" r="72" fill="#F2A65A"/>
+      <circle cx="345" cy="175" r="92" fill="#FFD98E"/>
+    </g>
+
+    <!-- bubbles, ascending and warming -->
+    <circle cx="100" cy="420" r="34" fill="url(#b1)" opacity="0.94"/>
+    <circle cx="160" cy="360" r="52" fill="url(#b2)" opacity="0.94"/>
+    <circle cx="250" cy="290" r="72" fill="url(#b3)" opacity="0.94"/>
+    <circle cx="345" cy="175" r="92" fill="url(#b4)" opacity="0.96"/>
+
+    <!-- specular highlights, same light source as the app's bubbles -->
+    <circle cx="88"  cy="407" r="11" fill="#fff" opacity="0.34"/>
+    <circle cx="141" cy="341" r="17" fill="#fff" opacity="0.34"/>
+    <circle cx="222" cy="263" r="24" fill="#fff" opacity="0.34"/>
+    <circle cx="309" cy="140" r="31" fill="#fff" opacity="0.40"/>
+  </g>
+</svg>
+
+<svg id="mask" class="stage" width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#151033"/>
+  <rect width="512" height="512" fill="url(#dawnglow)"/>
+  <!-- maskable: same art pulled into the centred safe zone so no platform mask clips it -->
+  <g transform="translate(256,256) scale(0.63) translate(-248,-262)">
+    <g filter="url(#soft)" opacity="0.55">
+      <circle cx="100" cy="420" r="34" fill="#E2726E"/>
+      <circle cx="160" cy="360" r="52" fill="#EA8A63"/>
+      <circle cx="250" cy="290" r="72" fill="#F2A65A"/>
+      <circle cx="345" cy="175" r="92" fill="#FFD98E"/>
+    </g>
+    <circle cx="100" cy="420" r="34" fill="url(#b1)" opacity="0.94"/>
+    <circle cx="160" cy="360" r="52" fill="url(#b2)" opacity="0.94"/>
+    <circle cx="250" cy="290" r="72" fill="url(#b3)" opacity="0.94"/>
+    <circle cx="345" cy="175" r="92" fill="url(#b4)" opacity="0.96"/>
+    <circle cx="88"  cy="407" r="11" fill="#fff" opacity="0.34"/>
+    <circle cx="141" cy="341" r="17" fill="#fff" opacity="0.34"/>
+    <circle cx="222" cy="263" r="24" fill="#fff" opacity="0.34"/>
+    <circle cx="309" cy="140" r="31" fill="#fff" opacity="0.40"/>
+  </g>
+</svg>
