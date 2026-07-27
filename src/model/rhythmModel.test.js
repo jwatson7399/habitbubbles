@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   creditedCompletions,
   attainment,
+  attainmentStats,
   isWarmingUp,
   rhythmScore,
   rhythmZone,
@@ -258,5 +259,39 @@ describe("quotaStreak", () => {
       { habitId: "h", id: "d", at: NOW - 9 * DAY },
     ];
     expect(quotaStreak(weekly, met, NOW)).toBe(2);
+  });
+});
+
+describe("attainment window origin", () => {
+  const daily = (over = 30) => ({
+    id: "h", quota: 1, periodDays: 1,
+    createdAt: NOW - over * DAY,
+    anchorAt: NOW - over * DAY - DAY / 2,
+  });
+
+  it("does not invent expectation for time before the habit existed", () => {
+    // The window runs from trackingOrigin, not the half-period-earlier anchor.
+    // Windowing from anchorAt made this read 0.667 rather than 1.
+    const habit = { id: "h", quota: 1, periodDays: 1, createdAt: NOW - DAY, anchorAt: NOW - DAY - DAY / 2 };
+    const done = [{ habitId: "h", id: "c1", at: NOW - DAY / 2 }];
+    expect(attainment(habit, done, NOW)).toBeCloseTo(1, 5);
+  });
+
+  it("scores a perfect run at 100% regardless of where in the period it is done", () => {
+    for (const offset of [0, 0.25, 0.5, 0.9]) {
+      const habit = daily();
+      const done = [];
+      for (let k = 0; k < 30; k++) {
+        const at = habit.createdAt + (k + offset) * DAY;
+        if (at <= NOW) done.push({ habitId: "h", id: `c${k}`, at });
+      }
+      expect(attainment(habit, done, NOW)).toBeCloseTo(1, 5);
+    }
+  });
+
+  it("expects one period's quota per period, not one and a half", () => {
+    const habit = daily(2);
+    const stats = attainmentStats(habit, [], NOW);
+    expect(stats.expected).toBeCloseTo(2, 5);
   });
 });

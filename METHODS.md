@@ -232,7 +232,7 @@ thrashes daily.
 ```
 W          = settings.rhythmWindowDays         // default 14
 W_h        = max(W, 2 × P)                     // per-habit rhythm window
-effectiveW = min(W_h, now − anchorAt)          // proration for young habits
+effectiveW = min(W_h, now − trackingOrigin)    // proration for young habits
 expected   = N × (effectiveW / P)
 attainment = warmingUp ? null : min(1, creditedCompletions / expected)
 rhythm     = mean(attainment) over habits where attainment ≠ null
@@ -255,7 +255,7 @@ with ChoreBubbles' "over-goal stays green" rule.
 #### 3.3.1 Warm-up
 
 ```
-warmingUp = (now − anchorAt) < P
+warmingUp = (now − trackingOrigin) < P
 ```
 
 A habit is excluded from the rhythm mean until one full period has elapsed, and
