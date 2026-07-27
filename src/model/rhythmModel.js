@@ -14,7 +14,13 @@ export function isWarmingUp(habit, now) {
 
 // Only completions representing distinct opportunities earn credit. Walking in
 // ascending order, a completion is credited unless `quota` already-credited
-// completions fall within the preceding period.
+// completions fall in the SAME anchored period.
+//
+// This is deliberately per anchored period, not a rolling window: `quotaStreak`
+// buckets by the same period keys, and a rolling cap silently disagreed with it.
+// A daily habit done at 21:36 and then 20:24 the next day is 22.8h apart — one
+// rolling window, but two real periods — and the second completion was being
+// dropped, so a perfect fortnight scored 0.64 with a streak of 1.
 export function creditedCompletions(habit, completions) {
   const period = habit.periodDays * DAY;
   if (!(period > 0) || !(habit.quota > 0)) return [];
@@ -25,9 +31,14 @@ export function creditedCompletions(habit, completions) {
     .sort((a, b) => a.at - b.at);
 
   const credited = [];
+  const perPeriod = new Map();
   for (const c of sorted) {
-    const recent = credited.filter((k) => c.at - k.at < period).length;
-    if (recent < habit.quota) credited.push(c);
+    const key = periodKey(habit, c.at);
+    const used = perPeriod.get(key) || 0;
+    if (used < habit.quota) {
+      credited.push(c);
+      perPeriod.set(key, used + 1);
+    }
   }
   return credited;
 }

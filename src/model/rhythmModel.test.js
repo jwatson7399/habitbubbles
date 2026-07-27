@@ -19,7 +19,7 @@ describe("creditedCompletions", () => {
   it("credits one completion for a daily habit tapped seven times in a day", () => {
     const habit = mk(60);
     const taps = Array.from({ length: 7 }, (_, i) => ({
-      habitId: "h", id: `t${i}`, at: NOW - i * 3600000,
+      habitId: "h", id: `t${i}`, at: NOW - (i + 1) * 3600000,
     }));
     expect(creditedCompletions(habit, taps)).toHaveLength(1);
   });
@@ -33,6 +33,36 @@ describe("creditedCompletions", () => {
   it("credits completions in separate periods independently", () => {
     const habit = mk(60);
     expect(creditedCompletions(habit, [at(0), at(2), at(4)])).toHaveLength(3);
+  });
+
+  it("credits both days when a daily habit drifts earlier (the anchored-period bug)", () => {
+    const habit = { id: "h", quota: 1, periodDays: 1, anchorAt: NOW - 30 * DAY };
+    const evening = [
+      { habitId: "h", id: "d8", at: habit.anchorAt + 8 * DAY + 21.6 * 3600000 },
+      { habitId: "h", id: "d9", at: habit.anchorAt + 9 * DAY + 20.4 * 3600000 },
+    ];
+    expect(creditedCompletions(habit, evening).map((c) => c.id)).toEqual(["d8", "d9"]);
+  });
+
+  it("credits every day of a perfect fortnight despite time-of-day jitter", () => {
+    const habit = { id: "h", quota: 1, periodDays: 1, anchorAt: NOW - 30 * DAY };
+    const offsets = [20.9, 18.4, 21.7, 19.2, 20.1, 18.8, 21.9, 19.6, 20.4, 18.1, 21.2, 19.9, 20.7, 18.3];
+    const done = offsets.map((h, i) => ({
+      habitId: "h",
+      id: `j${i}`,
+      at: habit.anchorAt + i * DAY + h * 3600000,
+    }));
+    expect(creditedCompletions(habit, done)).toHaveLength(14);
+  });
+
+  it("still caps a burst inside one period", () => {
+    const habit = { id: "h", quota: 1, periodDays: 1, anchorAt: NOW - 30 * DAY };
+    const burst = Array.from({ length: 7 }, (_, i) => ({
+      habitId: "h",
+      id: `b${i}`,
+      at: habit.anchorAt + 3 * DAY + (8 + i) * 3600000,
+    }));
+    expect(creditedCompletions(habit, burst)).toHaveLength(1);
   });
 });
 
