@@ -48,7 +48,14 @@ export function creditedCompletions(habit, completions) {
   return credited;
 }
 
-export function attainment(habit, completions, now, windowDays = DEFAULT_RHYTHM_WINDOW_DAYS) {
+// The raw window figures behind attainment. Exported so the Log screen can show
+// `credited / expected` without re-deriving the windowing math — if the two
+// disagreed, the screen would contradict the score printed beside it.
+// Returns null while warming up, matching attainment().
+//
+// Window origin is habit.anchorAt (not trackingOrigin) — that's what attainment()
+// has always used, and this refactor preserves it rather than changing it.
+export function attainmentStats(habit, completions, now, windowDays = DEFAULT_RHYTHM_WINDOW_DAYS) {
   if (isWarmingUp(habit, now)) return null;
 
   const period = habit.periodDays * DAY;
@@ -62,7 +69,12 @@ export function attainment(habit, completions, now, windowDays = DEFAULT_RHYTHM_
     (c) => c.at >= from && c.at <= now
   ).length;
 
-  return Math.min(1, credited / expected);
+  return { credited, expected, ratio: credited / expected };
+}
+
+export function attainment(habit, completions, now, windowDays = DEFAULT_RHYTHM_WINDOW_DAYS) {
+  const stats = attainmentStats(habit, completions, now, windowDays);
+  return stats === null ? null : Math.min(1, stats.ratio);
 }
 
 export const AMBER_START = 0.4;

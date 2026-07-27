@@ -3,12 +3,11 @@ import {
   rhythmScore,
   rhythmZone,
   attainment,
+  attainmentStats,
   quotaStreak,
-  creditedCompletions,
   DEFAULT_RHYTHM_WINDOW_DAYS,
 } from "../model/rhythmModel.js";
 import { habitHistoryFor, completionImpact } from "../model/habitHistory.js";
-import { DAY } from "../model/habitData.js";
 import { now as clockNow } from "../utils/clock.js";
 import { timeAgo } from "../utils/format.js";
 import { btnStyle } from "../components/controls.jsx";
@@ -20,26 +19,10 @@ import RhythmBar from "../components/RhythmBar.jsx";
 // period genuinely is a day, so "day" is still the right word there. Any
 // other cadence (biweekly, monthly-ish) falls back to the generic "period"
 // rather than guessing at a word that could be wrong.
-function periodUnit(periodDays) {
+export function periodUnit(periodDays) {
   if (periodDays === 1) return "day";
   if (periodDays === 7) return "week";
   return "period";
-}
-
-// credited/expected for the window, for display. Deliberately not reusing
-// attainment()'s return value here: attainment() caps at 1 and reports null
-// while warming up, which is right for scoring but would hide the raw counts
-// ("12 / 14") this row wants to show once a habit is past warm-up.
-function windowStats(habit, completions, now, windowDays) {
-  const period = habit.periodDays * DAY;
-  const windowMs = Math.max(windowDays * DAY, 2 * period);
-  const effectiveW = Math.min(windowMs, now - habit.anchorAt);
-  const expected = habit.quota * (effectiveW / period);
-  const from = now - effectiveW;
-  const credited = creditedCompletions(habit, completions).filter(
-    (c) => c.at >= from && c.at <= now
-  ).length;
-  return { credited, expected: Math.round(expected) };
 }
 
 // ---------- Log screen ----------
@@ -93,7 +76,8 @@ export default function LogScreen({ habits, completions, rhythmWindowDays, green
       {activeHabits.map((habit) => {
         const habitScore = attainment(habit, completions, at, windowDays);
         const streak = quotaStreak(habit, completions, at);
-        const stats = habitScore == null ? null : windowStats(habit, completions, at, windowDays);
+        const rawStats = attainmentStats(habit, completions, at, windowDays);
+        const stats = rawStats && { credited: rawStats.credited, expected: Math.round(rawStats.expected) };
         return (
           <div key={habit.id} style={{ padding: "10px 0", borderBottom: "1px solid #1A3542" }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
