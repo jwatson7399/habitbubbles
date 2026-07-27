@@ -306,12 +306,30 @@ would place the boundary maximally far from the habit's usual hour and close thi
 the cost of an anchor that no longer equals `createdAt` on day one. **This was
 implemented**: `anchorAt = createdAt − periodDays/2`.
 
-**Known limitation under observation (found in final review).** The half-period offset
-assumes the habit is performed at a single consistent time of day. A user who performs
-a habit at two very different times — e.g. evenings on day-shift days, small hours after
-night shifts — can have two genuinely distinct real days collapse into the same anchored
-period, suppressing a streak that should have counted. This is an open issue, not yet
-addressed.
+**Known limitation — accepted, under observation (found in final review).** The
+half-period offset assumes the habit is performed at a single consistent time of day.
+A user whose performance time is *bimodal* — evenings on day-shift days, small hours
+after night shifts — can have two genuinely distinct real days collapse into the same
+anchored period, suppressing a streak that should have counted.
+
+Measured over a simulated fortnight for the owner's actual schedule (habits created
+21:00, so boundary at 09:00): a daily habit completed on all 14 days displayed **11/14
+with a streak of 1**. Sweeping the boundary across 24 hours with identical completions:
+
+| boundary | credited | streak |
+|---|---|---|
+| 21:00 (no offset) | 9/14 | 1 |
+| 09:00 (shipped) | 11/14 | 1 |
+| 06:00 | 13/14 | 5 |
+| 00:00–02:00 | 14/14 | 14 |
+
+This is in tension with §1.1 ("must never penalize working nights").
+
+**Decision: ship and watch.** Any real fix — a user-settable anchor hour, or a spillover
+rule letting a completion in an over-quota period fall into an adjacent empty one — is
+better designed against real completion times than against a simulation. **The telltale
+to watch is the daily meditation streak:** if it reads 1–2 while the habit has genuinely
+been done every day, this limitation has landed and the anchor needs to move.
 
 - Meditate (1/1), tapped 7× today → first counts, rest excluded → **credit 1**
 - BJJ (2/7), three sessions Saturday → first two count → **credit 2**
