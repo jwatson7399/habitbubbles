@@ -27,7 +27,7 @@ import {
   completionImpact,
   lastDoneLabel,
 } from "./choreHistory.js";
-import { creditedCompletionIds, shouldPulseHealth } from "./healthPulse.js";
+import { completionIds, shouldPulseRhythm } from "./model/rhythmPulse.js";
 import {
   advanceTwoStepChore,
   disableTwoStepChore,
@@ -406,7 +406,7 @@ export default function HabitBubbles() {
   useEffect(() => {
     if (!view) return;
     const score = healthScore(view.chores, view.completions, view.pauses || []);
-    if (shouldPulseHealth(
+    if (shouldPulseRhythm(
       prevHealthRef.current,
       score,
       knownCreditedCompletionIdsRef.current,
@@ -417,7 +417,7 @@ export default function HabitBubbles() {
       pulseTimer.current = setTimeout(() => setHealthPulse(0), 1400);
     }
     prevHealthRef.current = score;
-    knownCreditedCompletionIdsRef.current = creditedCompletionIds(view.completions);
+    knownCreditedCompletionIdsRef.current = completionIds(view.completions);
   }, [view]);
 
   if (!authReady) {
