@@ -6,10 +6,17 @@ export const DEFAULT_RHYTHM_WINDOW_DAYS = 14;
 // A habit is excluded from rhythm until one full period has elapsed. This is an
 // age test, not a size test: an earlier draft used `expected < 1`, which made a
 // monthly habit (1 x 14/30 = 0.47) permanently report 100%.
+//
+// Warm-up is an age question — has this habit existed long enough to judge? —
+// so it measures from createdAt, not from anchorAt. anchorAt is deliberately
+// offset half a period back to position period boundaries away from the hour
+// the habit is performed, and measuring warm-up from it would silently halve
+// the warm-up window.
 export function isWarmingUp(habit, now) {
   const period = habit.periodDays * DAY;
   if (!(period > 0)) return true;
-  return now - habit.anchorAt < period;
+  const origin = Number.isFinite(Number(habit.createdAt)) ? Number(habit.createdAt) : habit.anchorAt;
+  return now - origin < period;
 }
 
 // Only completions representing distinct opportunities earn credit. Walking in

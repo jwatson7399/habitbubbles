@@ -73,6 +73,18 @@ describe("isWarmingUp", () => {
     expect(isWarmingUp(mk(10, { quota: 1, periodDays: 30 }), NOW)).toBe(true);
     expect(isWarmingUp(mk(45, { quota: 1, periodDays: 30 }), NOW)).toBe(false);
   });
+
+  it("warms up for a full period measured from createdAt, not the offset anchor", () => {
+    const period = 60;
+    const created = NOW - 40 * DAY;
+    const habit = { id: "h", quota: 1, periodDays: period, createdAt: created, anchorAt: created - (period * DAY) / 2 };
+    expect(isWarmingUp(habit, NOW)).toBe(true);
+    expect(isWarmingUp(habit, created + period * DAY + 1)).toBe(false);
+  });
+
+  it("falls back to anchorAt when createdAt is absent", () => {
+    expect(isWarmingUp({ id: "h", quota: 1, periodDays: 1, anchorAt: NOW - 2 * DAY }, NOW)).toBe(false);
+  });
 });
 
 describe("attainment", () => {

@@ -35,8 +35,19 @@ export function normalizeHabit(raw, now) {
 // Completions before the anchor are rejected rather than clamped: clamping
 // would silently misdate the entry, and allowing it would produce negative
 // period keys and an ill-defined warm-up.
+//
+// Completions before the habit existed are rejected, not clamped: clamping
+// would silently misdate the entry. The bound is createdAt rather than
+// anchorAt, because anchorAt sits half a period earlier by design and must not
+// become a licence to backdate into a time when the habit did not exist.
 export function canLogCompletion(habit, at) {
-  return Number.isFinite(Number(at)) && Number(at) >= habit.anchorAt;
+  const value = Number(at);
+  if (!Number.isFinite(value)) return false;
+  const earliest = Math.max(
+    habit.anchorAt,
+    Number.isFinite(Number(habit.createdAt)) ? Number(habit.createdAt) : habit.anchorAt
+  );
+  return value >= earliest;
 }
 
 export function archiveHabit(habit) {

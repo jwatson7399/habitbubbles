@@ -83,16 +83,31 @@ describe("normalizeHabit", () => {
 });
 
 describe("canLogCompletion", () => {
-  const habit = normalizeHabit({ anchorAt: NOW - 10 * DAY }, NOW);
+  // A realistic habit: createdAt in the past, anchorAt derived from it by the
+  // half-period offset rather than set independently.
+  const habit = normalizeHabit({ createdAt: NOW - 10 * DAY }, NOW);
 
-  it("accepts a timestamp at or after the anchor", () => {
-    expect(canLogCompletion(habit, habit.anchorAt)).toBe(true);
+  it("accepts a timestamp at or after the habit was created", () => {
+    expect(canLogCompletion(habit, habit.createdAt)).toBe(true);
     expect(canLogCompletion(habit, NOW)).toBe(true);
   });
 
-  it("rejects a timestamp before the anchor rather than clamping it", () => {
-    expect(canLogCompletion(habit, habit.anchorAt - 1)).toBe(false);
+  it("rejects a timestamp before creation rather than clamping it", () => {
+    expect(canLogCompletion(habit, habit.createdAt - 1)).toBe(false);
     expect(canLogCompletion(habit, 0)).toBe(false);
+  });
+
+  it("does not treat the offset anchor as a licence to backdate", () => {
+    expect(habit.anchorAt).toBeLessThan(habit.createdAt);
+    expect(canLogCompletion(habit, habit.anchorAt)).toBe(false);
+  });
+
+  it("rejects a completion from before the habit existed, despite the earlier anchor", () => {
+    const h = normalizeHabit({ periodDays: 7, createdAt: NOW - 10 * DAY }, NOW);
+    expect(h.anchorAt).toBeLessThan(h.createdAt);
+    expect(canLogCompletion(h, h.createdAt)).toBe(true);
+    expect(canLogCompletion(h, h.createdAt - 1)).toBe(false);
+    expect(canLogCompletion(h, h.anchorAt)).toBe(false);
   });
 });
 
