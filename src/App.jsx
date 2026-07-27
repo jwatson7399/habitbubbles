@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
-  getSharedRecord,
-  compareAndSetShared,
+  getRecord,
+  saveRecord,
   getPendingOperations,
   enqueueOperation,
   removePendingOperations,
-  getAuthSession,
-  onAuthSessionChange,
-  sendMagicLink,
-  verifyEmailOtp,
-  signOut,
-  isSynced,
   INTRO_KEY,
 } from "./storage.js";
 import {
@@ -29,7 +23,7 @@ import {
 } from "./choreHistory.js";
 import { completionIds, shouldPulseRhythm } from "./model/rhythmPulse.js";
 import { DAY, uid, defaultData, normalizeData, applyOperation } from "./model/habitData.js";
-import { activePause, lastDone, urgencyOf, healthScore } from "./model/choreMath.js";
+import { lastDone, urgencyOf, healthScore } from "./model/choreMath.js";
 import { faceFor, timeAgo, historyDate } from "./utils/format.js";
 import { realNow, now, setTimeOffset } from "./utils/clock.js";
 import { Modal } from "./components/Modal.jsx";
@@ -58,12 +52,6 @@ const STARTERS = [
 
 // ---------- Main app ----------
 export default function HabitBubbles() {
-  const [session, setSession] = useState(null);
-  const [authReady, setAuthReady] = useState(!isSynced());
-  const [authEmail, setAuthEmail] = useState("");
-  const [authSent, setAuthSent] = useState(false);
-  const [authCode, setAuthCode] = useState("");
-  const [authError, setAuthError] = useState("");
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("bubbles");
   const [tapChore, setTapChore] = useState(null);
@@ -93,7 +81,7 @@ export default function HabitBubbles() {
   dataRef.current = data;
   simDaysRef.current = simDays;
 
-  // While the time machine is running, edits (popping bubbles, service, pauses)
+  // While the time machine is running, edits (popping bubbles, service)
   // apply to a local sandbox copy that is never synced and is discarded on
   // returning to today. This keeps simulated play out of saved data.
   const view = simDays > 0 && simData ? simData : data;
@@ -101,26 +89,22 @@ export default function HabitBubbles() {
   const logStats = useMemo(() => {
     if (!view) return null;
     const at = now();
-    const pauses = view.pauses || [];
     const goal = Number(view.settings?.weeklyGoal) || 14;
-    const paused = !!activePause(pauses, "house");
-    const points = weeklyPoints(view.completions, "owner", pauses, at);
+    const points = weeklyPoints(view.completions, "owner", [], at);
     const { greenMin } = effortZoneThresholds(goal, view.settings?.greenStart);
-    const previousPoints = pointsInActivePeriod(view.completions, "owner", pauses, at, 1);
-    const streak = soloStreak(view.completions, greenMin, pauses, at);
+    const previousPoints = pointsInActivePeriod(view.completions, "owner", [], at, 1);
+    const streak = soloStreak(view.completions, greenMin, [], at);
     const urgencyById = Object.fromEntries(
-      view.chores.map((chore) => [chore.id, urgencyOf(chore, view.completions, pauses)])
+      view.chores.map((chore) => [chore.id, urgencyOf(chore, view.completions, [])])
     );
     const gap = Math.max(0, greenMin - points);
-    const suggestion = !paused && gap > 0
+    const suggestion = gap > 0
       ? suggestCombo(view.chores, gap, urgencyById, suggestionSeed)
       : null;
 
     return {
-      pauses,
       goal,
       greenMin,
-      paused,
       points,
       previousPoints,
       previousHasActivity: previousPoints > 0,
@@ -136,56 +120,27 @@ export default function HabitBubbles() {
     toastTimer.current = setTimeout(() => setToast(null), 6000);
   }, []);
 
-  useEffect(() => {
-    if (!isSynced()) return;
-    let active = true;
-    let unsubscribe = () => {};
-    (async () => {
-      try {
-        const current = await getAuthSession();
-        if (active) setSession(current);
-        unsubscribe = onAuthSessionChange((nextSession) => {
-          setSession(nextSession);
-          if (!nextSession) setData(null);
-        });
-      } catch (error) {
-        if (active) setAuthError(error.message || "Could not check sign-in status.");
-      } finally {
-        if (active) setAuthReady(true);
-      }
-    })();
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, []);
-
   const flushQueue = useCallback(async () => {
     if (flushPromiseRef.current) return flushPromiseRef.current;
 
     const task = (async () => {
       busyRef.current = true;
       try {
-        for (let attempt = 0; attempt < 8; attempt++) {
-          const pending = getPendingOperations();
-          if (pending.length === 0) {
-            setSyncState("");
-            return true;
-          }
-
-          setSyncState("syncing...");
-          const remote = await getSharedRecord();
-          const merged = pending.reduce(applyOperation, normalizeData(remote.value));
-          const saved = await compareAndSetShared(merged, remote.revision);
-          if (!saved.ok) continue;
-
-          const remaining = removePendingOperations(pending.map((item) => item.id));
-          const visible = remaining.reduce(applyOperation, normalizeData(saved.value));
-          setData(visible);
+        const pending = getPendingOperations();
+        if (pending.length === 0) {
+          setSyncState("");
+          return true;
         }
-        throw new Error("Your data changed repeatedly while saving.");
+
+        const current = getRecord();
+        const merged = pending.reduce(applyOperation, normalizeData(current));
+        saveRecord(merged);
+        removePendingOperations(pending.map((item) => item.id));
+        setData(merged);
+        setSyncState("saved locally");
+        return true;
       } catch (error) {
-        setSyncState(isSynced() ? "offline — changes queued" : "saved locally");
+        setSyncState("saved locally");
         return false;
       } finally {
         busyRef.current = false;
@@ -200,22 +155,21 @@ export default function HabitBubbles() {
   const load = useCallback(async () => {
     if (busyRef.current) return;
     try {
-      const remote = await getSharedRecord();
+      const stored = getRecord();
       const pending = getPendingOperations();
-      const visible = pending.reduce(applyOperation, normalizeData(remote.value));
+      const visible = pending.reduce(applyOperation, normalizeData(stored));
       setData(visible);
       setSyncState("");
       if (pending.length > 0) flushQueue();
     } catch (error) {
       setSyncState(error.message || "Unable to load your chores.");
-      if (!isSynced() && !dataRef.current) setData(defaultData());
+      if (!dataRef.current) setData(defaultData());
     }
   }, [flushQueue]);
 
   useEffect(() => {
-    if (!authReady || (isSynced() && !session)) return;
     load();
-  }, [authReady, session, load]);
+  }, [load]);
 
   useEffect(() => {
     if (!data || simDays > 0) return;
@@ -225,7 +179,6 @@ export default function HabitBubbles() {
   }, [data, simDays]);
 
   useEffect(() => {
-    if (!authReady || (isSynced() && !session)) return;
     const refresh = () => {
       load();
       flushQueue();
@@ -234,7 +187,7 @@ export default function HabitBubbles() {
     const onVis = () => { if (!document.hidden) refresh(); };
     document.addEventListener("visibilitychange", onVis);
     return () => { clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
-  }, [authReady, session, load, flushQueue]);
+  }, [load, flushQueue]);
 
   const commit = useCallback((operation) => {
     // In the time machine, stamp with simulated "now" and keep edits local.
@@ -249,31 +202,6 @@ export default function HabitBubbles() {
     flushQueue();
     return true;
   }, [flushQueue]);
-
-  const requestMagicLink = async () => {
-    const email = authEmail.trim().toLowerCase();
-    if (!email) return;
-    setAuthError("");
-    try {
-      await sendMagicLink(email);
-      setAuthSent(true);
-    } catch (error) {
-      setAuthError(error.message || "Could not send the sign-in code.");
-    }
-  };
-
-  const verifyCode = async () => {
-    const email = authEmail.trim().toLowerCase();
-    const token = authCode.replace(/\s/g, "");
-    if (!email || !token) return;
-    setAuthError("");
-    try {
-      const nextSession = await verifyEmailOtp(email, token);
-      if (nextSession) setSession(nextSession);
-    } catch (error) {
-      setAuthError(error.message || "That code didn't work. Check it and try again.");
-    }
-  };
 
   const dismissIntro = () => {
     try { localStorage.setItem(INTRO_KEY, "1"); } catch {}
@@ -302,11 +230,6 @@ export default function HabitBubbles() {
       commit({ type: "completion:add", completion: entry });
       setToast(null);
     });
-  };
-
-  const togglePause = (scope) => {
-    const active = !!activePause(view.pauses || [], scope);
-    commit({ type: "pause:set", scope, active: !active, at: now(), pauseId: uid() });
   };
 
   const logCompletion = (chore) => {
@@ -373,8 +296,8 @@ export default function HabitBubbles() {
     showToast("All chores cleared");
   };
 
-  // Mark every chore as just done (no points) — for coming back after time away
-  // without having paused. Resets bubble sizes and health without crediting anyone.
+  // Mark every chore as just done (no points) — for coming back after time away.
+  // Resets bubble sizes and health without crediting anyone.
   const resetBubbles = () => {
     const ts = realNow();
     const comps = view.chores.map((ch) => ({ id: uid(), choreId: ch.id, choreName: ch.name, difficulty: ch.difficulty, by: "reset", ts }));
@@ -388,7 +311,7 @@ export default function HabitBubbles() {
   // the previous behavior for other health improvements.
   useEffect(() => {
     if (!view) return;
-    const score = healthScore(view.chores, view.completions, view.pauses || []);
+    const score = healthScore(view.chores, view.completions, []);
     if (shouldPulseRhythm(
       prevHealthRef.current,
       score,
@@ -403,56 +326,6 @@ export default function HabitBubbles() {
     knownCreditedCompletionIdsRef.current = completionIds(view.completions);
   }, [view]);
 
-  if (!authReady) {
-    return (
-      <div style={{ height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0C1B26", color: "#7FA3AC", fontFamily: "'Nunito Sans', sans-serif" }}>
-        Checking your session...
-      </div>
-    );
-  }
-
-  if (isSynced() && !session) {
-    return (
-      <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(120% 100% at 50% 0%, #123240 0%, #0C1B26 70%)", color: "#E8F3F4", fontFamily: "'Nunito Sans', sans-serif", padding: 24 }}>
-        <div style={{ width: "100%", maxWidth: 420, background: "#16303C", border: "1px solid #1E4152", borderRadius: 22, padding: 24 }}>
-          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 26, fontWeight: 700, marginBottom: 4 }}>Chore<span style={{ color: "#5FE0BB" }}>Bubbles</span> <span style={{ color: "#9FD4EA", fontSize: 16 }}>Solo</span></div>
-          <div style={{ color: "#B9D2D8", fontSize: 14, marginBottom: 18 }}>Sign in with your approved email. We’ll email you a 6-digit code to enter below.</div>
-          <input
-            type="email"
-            autoComplete="email"
-            value={authEmail}
-            placeholder="you@example.com"
-            onChange={(event) => { setAuthEmail(event.target.value); setAuthSent(false); }}
-            onKeyDown={(event) => { if (event.key === "Enter") requestMagicLink(); }}
-            style={{ width: "100%", background: "#0F2530", border: "1px solid #1E4152", borderRadius: 12, padding: "12px 14px", color: "#E8F3F4", fontSize: 15, marginBottom: 10 }}
-          />
-          <button onClick={requestMagicLink} style={{ ...btnStyle("#5FE0BB"), width: "100%" }}>
-            {authSent ? "Resend code" : "Email me a sign-in code"}
-          </button>
-          {authSent && (
-            <>
-              <div style={{ color: "#B9D2D8", fontSize: 13, margin: "16px 0 8px" }}>
-                Enter the 6-digit code from the email. This works even when the app is installed to your home screen.
-              </div>
-              <input
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                value={authCode}
-                placeholder="123456"
-                onChange={(event) => setAuthCode(event.target.value)}
-                onKeyDown={(event) => { if (event.key === "Enter") verifyCode(); }}
-                style={{ width: "100%", background: "#0F2530", border: "1px solid #1E4152", borderRadius: 12, padding: "12px 14px", color: "#E8F3F4", fontSize: 20, letterSpacing: 6, textAlign: "center", marginBottom: 10 }}
-              />
-              <button onClick={verifyCode} style={{ ...btnStyle("#5FE0BB"), width: "100%" }}>Verify code</button>
-            </>
-          )}
-          {authError && <div style={{ color: "#FF8B7B", fontSize: 13, marginTop: 12 }}>{authError}</div>}
-        </div>
-      </div>
-    );
-  }
-
   if (!data) {
     return (
       <div style={{ height: "100dvh", display: "flex", flexDirection: "column", gap: 10, alignItems: "center", justifyContent: "center", textAlign: "center", padding: 28, background: "#0C1B26", color: "#7FA3AC", fontFamily: "'Nunito Sans', sans-serif" }}>
@@ -464,10 +337,8 @@ export default function HabitBubbles() {
 
   const { settings } = view;
   const {
-    pauses,
     goal,
     greenMin,
-    paused,
     points,
     previousPoints,
     previousHasActivity,
@@ -475,7 +346,7 @@ export default function HabitBubbles() {
     gap,
     suggestion,
   } = logStats;
-  const health = healthScore(view.chores, view.completions, pauses);
+  const health = healthScore(view.chores, view.completions, []);
   const healthPct = Math.round(health * 100);
   const healthColor = healthPct >= 80 ? "#5FE0BB" : healthPct >= 50 ? "#FFC65E" : "#FF8B7B";
   const recent = [...view.completions].sort((a, b) => b.ts - a.ts).slice(0, 30);
@@ -486,7 +357,7 @@ export default function HabitBubbles() {
   const suggestedBubbleIds = new Set(
     bubbleSuggestionsVisible && suggestion ? suggestion.chores.map((chore) => chore.id) : []
   );
-  const canShuffleSuggestions = !!suggestion && !paused && view.chores.length > 0;
+  const canShuffleSuggestions = !!suggestion && view.chores.length > 0;
   const shuffleSuggestions = () => {
     if (!canShuffleSuggestions) return;
     setBubbleSuggestionsVisible(true);
@@ -523,12 +394,10 @@ export default function HabitBubbles() {
           Chore<span style={{ color: "#5FE0BB" }}>Bubbles</span> <span style={{ color: "#9FD4EA", fontSize: 13 }}>Solo</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ fontSize: 12, color: simDays > 0 ? "#FFC65E" : paused ? "#6FC3FF" : "#7FA3AC", fontWeight: simDays > 0 || paused ? 700 : 400 }}>
+          <div style={{ fontSize: 12, color: simDays > 0 ? "#FFC65E" : "#7FA3AC", fontWeight: simDays > 0 ? 700 : 400 }}>
             {simDays > 0
               ? `⏩ +${simDays}d`
-              : paused
-              ? "🏖 paused"
-              : syncState || (!isSynced() ? "local only" : settings.ownerName)}
+              : syncState || "local only"}
           </div>
           <button onClick={() => setSimOpen(true)} style={{ background: "none", border: "none", fontSize: 17, cursor: "pointer", padding: 2, WebkitTapHighlightColor: "transparent", opacity: 0.75 }}>
             🧪
@@ -590,7 +459,7 @@ export default function HabitBubbles() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
           {view.chores.length > 0 && (
             <div style={{ padding: "2px 20px 8px" }}>
-              <CompactBar name={settings.ownerName} points={points} goal={goal} greenStart={settings.greenStart} paused={paused} />
+              <CompactBar name={settings.ownerName} points={points} goal={goal} greenStart={settings.greenStart} />
             </div>
           )}
           {simDays > 0 && (
@@ -598,12 +467,7 @@ export default function HabitBubbles() {
               🧪 Time machine — tap bubbles to test. Nothing here is saved.
             </div>
           )}
-          {paused && (
-            <div style={{ margin: "4px 20px 0", padding: "9px 14px", background: "#12384A", border: "1px solid #1E5A73", borderRadius: 12, fontSize: 13, color: "#9FD4EA", textAlign: "center" }}>
-              🏖 Paused. Bubble growth and your tally are frozen until you resume.
-            </div>
-          )}
-          <BubbleField chores={view.chores} completions={view.completions} pauses={pauses} onTap={(ch) => { setTapWhenDays(0); setTapChore(ch); }} popId={popId} simDays={simDays} suggestedIds={suggestedBubbleIds} />
+          <BubbleField chores={view.chores} completions={view.completions} pauses={[]} onTap={(ch) => { setTapWhenDays(0); setTapChore(ch); }} popId={popId} simDays={simDays} suggestedIds={suggestedBubbleIds} />
           <div style={{ padding: "0 20px 10px", display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", gap: 8 }}>
               <button
@@ -645,7 +509,7 @@ export default function HabitBubbles() {
           </div>
 
           <div style={{ background: "linear-gradient(145deg, #173746, #122B37)", border: "1px solid #245064", borderRadius: 18, padding: "0 16px 12px", marginBottom: 12 }}>
-            <ProgressRow label={settings.ownerName} points={points} goal={goal} hue="#5FE0BB" paused={paused} zoned greenStart={settings.greenStart} prominent />
+            <ProgressRow label={settings.ownerName} points={points} goal={goal} hue="#5FE0BB" zoned greenStart={settings.greenStart} prominent />
             <div style={{ color: "#7FA3AC", fontSize: 11.5, textAlign: "center", padding: "2px 0 10px" }}>
               Full scale: {goal} points · Green starts at {greenMin}
             </div>
@@ -658,7 +522,7 @@ export default function HabitBubbles() {
             )}
           </div>
 
-          {!paused && (
+          {
             <div style={{ background: gap === 0 ? "#153D35" : "#2B2A19", border: `1px solid ${gap === 0 ? "#297261" : "#5B5327"}`, borderRadius: 18, padding: 16, marginBottom: 16 }}>
               {gap === 0 ? (
                 <>
@@ -693,11 +557,7 @@ export default function HabitBubbles() {
                 </>
               )}
             </div>
-          )}
-
-          <div style={{ color: "#7FA3AC", fontSize: 11.5, lineHeight: 1.45, textAlign: "center", margin: "2px 4px 20px" }}>
-            Vacation mode freezes bubble growth and your tally while you&apos;re away.
-          </div>
+          }
 
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Recent activity</div>
           {recent.length === 0 && <div style={{ color: "#7FA3AC", fontSize: 14 }}>Nothing logged yet. Tap a bubble to get started.</div>}
@@ -802,14 +662,6 @@ export default function HabitBubbles() {
             </>
           )}
 
-          <div style={{ marginTop: 26, fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Vacation mode</div>
-          <div style={{ fontSize: 12, color: "#7FA3AC", margin: "4px 0 10px" }}>
-            Pause freezes bubble growth and your rolling tally during a trip or a rough week.
-          </div>
-          <button onClick={() => togglePause("house")} style={{ ...btnStyle(paused ? "#6FC3FF" : "#0F2530", paused ? "#0C1B26" : "#9FD4EA"), width: "100%", marginBottom: 8, border: paused ? "none" : "1px solid #1E4152" }}>
-            {paused ? "🏖 Resume" : "🏖 Pause while away"}
-          </button>
-
           <div style={{ marginTop: 26, fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Solo settings</div>
           <Stepper label="Effort scale (full bar)" value={settings.weeklyGoal} min={4} max={40} onChange={(v) => commit({ type: "settings:patch", patch: { weeklyGoal: v, greenStart: Math.min(greenMin, v) } })} />
           <Stepper label="Green zone starts at" value={greenMin} min={2} max={settings.weeklyGoal} onChange={(v) => commit({ type: "settings:patch", patch: { greenStart: v } })} format={(v) => `${v} pts`} />
@@ -820,11 +672,6 @@ export default function HabitBubbles() {
           <button onClick={() => window.confirm("Clear the activity log? This cannot be undone.") && resetActivity()} style={{ ...btnStyle("#0F2530", "#FF8B7B"), width: "100%", marginTop: 8, border: "1px solid #1E4152", fontSize: 13 }}>
             Clear activity log
           </button>
-          {isSynced() && (
-            <button onClick={() => signOut().catch((error) => showToast(error.message || "Could not sign out."))} style={{ ...btnStyle("#0F2530", "#B9D2D8"), width: "100%", marginTop: 8, border: "1px solid #1E4152", fontSize: 13 }}>
-              Sign out {session?.user?.email ? `(${session.user.email})` : ""}
-            </button>
-          )}
         </div>
       )}
 
@@ -859,7 +706,7 @@ export default function HabitBubbles() {
         <Modal onClose={() => setSimOpen(false)}>
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700, marginBottom: 4 }}>Time machine 🧪</div>
           <div style={{ fontSize: 13, color: "#7FA3AC", marginBottom: 16 }}>
-            Fast-forward this phone&apos;s clock to preview bubble growth and seven-day tallies. Test completions and pauses stay in a local sandbox and disappear when you return to today.
+            Fast-forward this phone&apos;s clock to preview bubble growth and seven-day tallies. Test completions stay in a local sandbox and disappear when you return to today.
           </div>
           <div style={{ textAlign: "center", fontFamily: "'Baloo 2', sans-serif", fontSize: 26, fontWeight: 700, color: simDays > 0 ? "#FFC65E" : "#E8F3F4", marginBottom: 14 }}>
             {simDays === 0 ? "Today" : `Today + ${simDays} day${simDays === 1 ? "" : "s"}`}
