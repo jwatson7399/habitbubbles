@@ -47,3 +47,27 @@ export function attainment(habit, completions, now, windowDays = DEFAULT_RHYTHM_
 
   return Math.min(1, credited / expected);
 }
+
+export const AMBER_START = 0.4;
+export const DEFAULT_GREEN_START = 0.8;
+
+// Each habit contributes equally regardless of cadence. Counting raw
+// opportunities instead would give four daily habits 79% of the score and make
+// a completely blank fortnight of a twice-weekly habit cost only 5.6%.
+export function rhythmScore(habits, completions, now, windowDays = DEFAULT_RHYTHM_WINDOW_DAYS) {
+  const scores = (habits || [])
+    .filter((h) => !h.archived)
+    .map((h) => attainment(h, completions, now, windowDays))
+    .filter((v) => v !== null);
+
+  if (!scores.length) return null;
+  return scores.reduce((a, b) => a + b, 0) / scores.length;
+}
+
+export function rhythmZone(score, greenStart = DEFAULT_GREEN_START) {
+  const green = Math.min(1, Math.max(AMBER_START + 0.0001, Number(greenStart) || DEFAULT_GREEN_START));
+  const value = Number(score) || 0;
+  if (value >= green) return { key: "green", label: "On top of it! 👌", emoji: "👌" };
+  if (value >= AMBER_START) return { key: "amber", label: "Maintaining 👍", emoji: "👍" };
+  return { key: "red", label: "Getting started ⚠️", emoji: "⚠️" };
+}

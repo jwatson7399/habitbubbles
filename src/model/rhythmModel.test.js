@@ -85,3 +85,89 @@ describe("attainment", () => {
     expect(attainment(habit, [], NOW)).toBe(0);
   });
 });
+
+import { rhythmScore, rhythmZone } from "./rhythmModel.js";
+
+describe("rhythmScore", () => {
+  const seven = [
+    { id: "med", quota: 1, periodDays: 1, anchorAt: NOW - 60 * DAY },
+    { id: "readA", quota: 1, periodDays: 1, anchorAt: NOW - 60 * DAY },
+    { id: "readB", quota: 1, periodDays: 1, anchorAt: NOW - 60 * DAY },
+    { id: "journal", quota: 1, periodDays: 1, anchorAt: NOW - 60 * DAY },
+    { id: "lift", quota: 1, periodDays: 2, anchorAt: NOW - 60 * DAY },
+    { id: "bjj", quota: 2, periodDays: 7, anchorAt: NOW - 60 * DAY },
+    { id: "cardio", quota: 2, periodDays: 7, anchorAt: NOW - 60 * DAY },
+  ];
+
+  const perfect = () => {
+    const out = [];
+    for (const h of seven) {
+      const opportunities = Math.ceil((14 / h.periodDays) * h.quota);
+      for (let i = 0; i < opportunities; i++) {
+        out.push({ habitId: h.id, id: `${h.id}-${i}`, at: NOW - i * h.periodDays * DAY / h.quota });
+      }
+    }
+    return out;
+  };
+
+  it("is 1 when every habit meets expectation", () => {
+    expect(rhythmScore(seven, perfect(), NOW)).toBeCloseTo(1, 2);
+  });
+
+  it("costs 1/7th when one twice-weekly habit is blank, not 5.6%", () => {
+    const withoutBjj = perfect().filter((c) => c.habitId !== "bjj");
+    const score = rhythmScore(seven, withoutBjj, NOW);
+    expect(1 - score).toBeCloseTo(1 / 7, 2);
+    expect(1 - score).toBeGreaterThan(0.1);
+  });
+
+  it("weights a blank daily habit exactly like a blank twice-weekly habit", () => {
+    const noBjj = rhythmScore(seven, perfect().filter((c) => c.habitId !== "bjj"), NOW);
+    const noMed = rhythmScore(seven, perfect().filter((c) => c.habitId !== "med"), NOW);
+    expect(noBjj).toBeCloseTo(noMed, 5);
+  });
+
+  it("excludes archived habits from the denominator", () => {
+    const habits = seven.map((h) => (h.id === "bjj" ? { ...h, archived: true } : h));
+    const withoutBjj = perfect().filter((c) => c.habitId !== "bjj");
+    expect(rhythmScore(habits, withoutBjj, NOW)).toBeCloseTo(1, 2);
+  });
+
+  it("excludes warming-up habits from the denominator", () => {
+    const fresh = { id: "new", quota: 1, periodDays: 1, anchorAt: NOW - DAY / 2 };
+    expect(rhythmScore([...seven, fresh], perfect(), NOW)).toBeCloseTo(1, 2);
+  });
+
+  it("returns null when nothing is scorable", () => {
+    expect(rhythmScore([], [], NOW)).toBeNull();
+  });
+});
+
+describe("rhythmZone", () => {
+  it("uses the exact encouraging labels", () => {
+    expect(rhythmZone(0.1).label).toBe("Getting started ⚠️");
+    expect(rhythmZone(0.5).label).toBe("Maintaining 👍");
+    expect(rhythmZone(0.9).label).toBe("On top of it! 👌");
+  });
+
+  it("places boundaries inclusively at the lower edge", () => {
+    expect(rhythmZone(0.4).key).toBe("amber");
+    expect(rhythmZone(0.8).key).toBe("green");
+    expect(rhythmZone(0.39999).key).toBe("red");
+  });
+
+  it("honours a configured green threshold", () => {
+    expect(rhythmZone(0.7, 0.65).key).toBe("green");
+    expect(rhythmZone(0.7, 0.9).key).toBe("amber");
+  });
+
+  it("keeps over-goal green", () => {
+    expect(rhythmZone(1).key).toBe("green");
+  });
+
+  it("exposes the emoji separately from the label", () => {
+    expect(rhythmZone(0.9).emoji).toBe("👌");
+    expect(rhythmZone(0.5).emoji).toBe("👍");
+    expect(rhythmZone(0.1).emoji).toBe("⚠️");
+  });
+});
