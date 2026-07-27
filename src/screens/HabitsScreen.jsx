@@ -23,6 +23,10 @@ export default function HabitsScreen({
   onSaveHabit,
   onDeleteHabit,
   onAddManyHabits,
+  // Settings render inside this screen's scroll container, after the list.
+  // As a sibling they competed with the list for height, leaving the habits
+  // stuck in a short scroll window with settings pinned below it.
+  children,
 }) {
   const [editing, setEditing] = useState(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -144,6 +148,8 @@ export default function HabitsScreen({
           {showArchived && archived.map(row)}
         </>
       )}
+
+      {children}
 
       {editing && (
         <Modal onClose={close}>

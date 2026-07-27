@@ -294,18 +294,16 @@ export default function HabitBubbles() {
       )}
 
       {tab === "habits" && (
-        <>
-          <HabitsScreen
-            habits={view.habits}
-            completions={view.completions}
-            simDays={simDays}
-            onSaveHabit={saveHabit}
-            onDeleteHabit={deleteHabit}
-            onAddManyHabits={addManyHabits}
-          />
-
-          <div style={{ padding: "0 20px 20px" }}>
-            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Solo settings</div>
+        <HabitsScreen
+          habits={view.habits}
+          completions={view.completions}
+          simDays={simDays}
+          onSaveHabit={saveHabit}
+          onDeleteHabit={deleteHabit}
+          onAddManyHabits={addManyHabits}
+        >
+          <div style={{ paddingTop: 26 }}>
+            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Settings</div>
             <Stepper
               label="Top zone starts at"
               value={Math.round(settings.greenStart * 100)}
@@ -316,14 +314,14 @@ export default function HabitBubbles() {
               format={(v) => `${v}%`}
             />
             <div style={{ color: theme.textMuted, fontSize: 11.5, margin: "-4px 0 8px" }}>
-              Land in the green once your rhythm reaches this percentage.
+              Your rhythm reads &ldquo;On top of it&rdquo; once it reaches this percentage.
             </div>
             <OwnerNameEditor settings={settings} onSave={(ownerName) => commit({ type: "settings:patch", patch: { ownerName } })} />
             {view.habits.length > 0 && (
               <>
-                <div style={{ marginTop: 26, fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Board maintenance</div>
+                <div style={{ marginTop: 26, fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Start over</div>
                 <div style={{ fontSize: 12, color: theme.textMuted, margin: "4px 0 10px" }}>
-                  Clear removes all habits so you can build a fresh list.
+                  Clearing removes every habit so you can build a fresh list.
                 </div>
                 <button disabled={simDays > 0} onClick={() => window.confirm("Clear all habits? This removes every habit and cannot be undone.") && clearHabits()} style={{ ...btnStyle(theme.surface, theme.zoneBehind), width: "100%", border: `1px solid ${theme.border}`, opacity: simDays > 0 ? 0.45 : 1 }}>
                   🗑 Clear all habits
@@ -334,7 +332,7 @@ export default function HabitBubbles() {
               Clear activity log
             </button>
           </div>
-        </>
+        </HabitsScreen>
       )}
 
       {/* Tab bar */}
@@ -368,7 +366,7 @@ export default function HabitBubbles() {
         <Modal onClose={() => setSimOpen(false)}>
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700, marginBottom: 4 }}>Time machine 🧪</div>
           <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>
-            Fast-forward this phone&apos;s clock to preview bubble growth and seven-day tallies. Test completions stay in a local sandbox and disappear when you return to today.
+            Fast-forward this phone&apos;s clock to preview how bubbles grow and how your rhythm moves. Test completions stay in a local sandbox and disappear when you return to today.
           </div>
           <div style={{ textAlign: "center", fontFamily: "'Baloo 2', sans-serif", fontSize: 26, fontWeight: 700, color: simDays > 0 ? theme.zoneMiddle : theme.text, marginBottom: 14 }}>
             {simDays === 0 ? "Today" : `Today + ${simDays} day${simDays === 1 ? "" : "s"}`}
@@ -387,7 +385,7 @@ export default function HabitBubbles() {
         <Modal onClose={dismissIntro}>
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 21, fontWeight: 700, marginBottom: 14 }}>How HabitBubbles works 🫧</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, color: theme.text, fontSize: 14, lineHeight: 1.45, marginBottom: 20 }}>
-            <div><strong style={{ color: theme.zoneTop }}>1.</strong> Set how often you want to do each habit — N times every P days.</div>
+            <div><strong style={{ color: theme.zoneTop }}>1.</strong> Set how often you want to do each habit — daily, twice a week, every other day.</div>
             <div><strong style={{ color: theme.zoneTop }}>2.</strong> Its bubble grows as that opportunity comes due; tap it to log the habit as done.</div>
             <div><strong style={{ color: theme.zoneTop }}>3.</strong> Your rhythm tracks how well you're keeping up over the last fortnight.</div>
           </div>

@@ -20,7 +20,22 @@ function hslToHex(h, s, l) {
   };
   return `#${f(0)}${f(8)}${f(4)}`;
 }
-export const bubbleHue = (i) => hslToHex((i * 137.508) % 360, 62, 68);
+// Bubbles live in the palette's dawn arc — rose through ember to gold — rather
+// than the full hue wheel, so a field of habits reads as one sunrise instead of
+// a rainbow. Golden-angle spacing keeps adjacent habits distinct inside the
+// narrow band, and a second low-discrepancy sequence varies lightness so two
+// bubbles landing on close hues still separate. Keeping the field warm is also
+// what lets the cool periwinkle suggestion ring read instantly.
+const DAWN_ARC_START = 345;
+const DAWN_ARC_SWEEP = 70;
+const GOLDEN_ANGLE = 137.508;
+const GOLDEN_RATIO_CONJUGATE = 0.6180339887;
+
+export const bubbleHue = (i) => {
+  const hue = (DAWN_ARC_START + (((i * GOLDEN_ANGLE) % 360) / 360) * DAWN_ARC_SWEEP) % 360;
+  const lightness = 60 + ((i * GOLDEN_RATIO_CONJUGATE) % 1) * 16;
+  return hslToHex(hue, 62, lightness);
+};
 
 // ---------- Bubble field ----------
 export default function BubbleField({ habits, completions, onTap, popId, simDays, suggestedIds }) {
