@@ -279,9 +279,33 @@ fortnightly or monthly habit is added.
 
 Only completions that represent distinct opportunities earn rhythm credit. Walking
 completions in **ascending timestamp order**, a completion earns credit unless **N
-already-credited completions fall within the preceding P days**; otherwise it is
-skipped. The comparison is against previously *credited* completions, not all
-completions, so the pass is deterministic and order-independent in its result.
+completions have already been credited within the same anchored period** (§3.4);
+otherwise it is skipped. The pass is deterministic and order-independent in its result.
+
+**Amended during implementation — this rule was originally specified as a *rolling*
+P-day window, which was a defect.** `quotaStreak` buckets credited completions by
+anchored period key, and a rolling credit cap silently disagreed with it. A daily habit
+done at 21:36 and then 20:24 the next day is 22.8 hours apart — one rolling window, but
+two genuine periods — so the second completion earned nothing. Measured across fourteen
+consecutive perfect days with ±2h time-of-day jitter: **9 of 14 credited, attainment
+0.643, streak 1**. Capping per anchored period instead restores 14/14, attainment 1.000,
+streak 14, and both worked examples below still hold.
+
+The accepted consequence: a burst that straddles a period boundary earns one credit per
+period rather than one in total. Two logs at 19:58 and 20:02 against a boundary at 20:00
+credit twice. This cannot manufacture credit for an empty period — both periods really
+did contain work — so it is consistent with quota-per-period semantics.
+
+**Known residual (§3.4 anchoring, not this rule).** Because `anchorAt` defaults to the
+habit's creation timestamp, the period boundary falls at whatever time of day the habit
+was created — which correlates with the time of day it is performed, since people often
+create a habit just after doing it. A habit performed within minutes of its own anchor
+instant straddles the boundary most days: measured at ±5 minutes across the anchor,
+**8 of 14 credited, attainment 0.500**. The same jitter performed 12 hours off the
+anchor gives a clean 14/14. Setting `anchorAt` to creation time minus half a period
+would place the boundary maximally far from the habit's usual hour and close this, at
+the cost of an anchor that no longer equals `createdAt` on day one. **Open decision —
+not implemented.**
 
 - Meditate (1/1), tapped 7× today → first counts, rest excluded → **credit 1**
 - BJJ (2/7), three sessions Saturday → first two count → **credit 2**
@@ -495,12 +519,27 @@ works against ChoreBubbles for the model-neutral parts.
 | `bubblePhysics.js` | 27 | Byte-identical. Drag, throw, `releaseBubbleNode`, the iOS `lostpointercapture` fix. |
 | `main.jsx` | 9 | Byte-identical. |
 | `bubblePresentation.js` | 57 | Keep `clampBubbleRadius`, `bubbleHitDiameter`, `usesCompactBubbleLabel` and their constants. Drop `bubblePriority` and `rankBubbleTargets` — both encode chore urgency and relative ranking. |
-| `healthPulse.js` | 20 | → `rhythmPulse.js`. The actor predicate is dropped entirely (§4); detection keys on new completion IDs alone. The sequence-counter-as-React-key trick carries over intact. |
+| `healthPulse.js` | 20 | → `rhythmPulse.js`. Detection keys on new completion IDs; the sequence-counter-as-React-key trick carries over intact. **The actor predicate cannot be dropped until service and board-reset are deleted** — see note below. |
 | `choreHistory.js` | 37 | → `habitHistory.js`. Drop service/reset labels; reframe impact as counted vs. over-quota. |
 | `storage.js` | 113 | Strip ~60 lines of Supabase auth (magic link, OTP, `getAuthSession`, `compareAndSetShared`). Keep local persistence and the pending-op queue. |
 | `logModel.js` | 215 | Replaced by `rhythmModel.js`. The ~50 lines of pause machinery (`pausedDuration`, `effectiveAge`) are deleted outright. |
 | `twoStepChore.js` | 66 | Deleted with its 88-line suite. |
 | `supabase-schema.sql` | — | Deleted. |
+
+**Correction to an earlier claim in this spec (found during implementation).** This
+document previously asserted the pulse's credited-actor predicate "would be
+constant-true" with a single user. That is true of the *finished* app but false during
+the transition: `confirmService` and `resetBubbles` still write `by: "service"` and
+`by: "reset"` completions, which credit nobody. Dropping the predicate made those
+actions fire the celebratory pulse. `rhythmPulse.js` therefore carries a **transitional
+denylist** (`service`, `reset`) — a denylist, not the parent's allowlist, because
+HabitBubbles' own completions carry no `by` field at all and an allowlist would exclude
+every real habit completion. It is deleted with those two features.
+
+Known inherited limitation, unchanged from the fork parent: `shouldPulseRhythm` fires on
+`scoreRose || hasNewCompletion`, and a service or reset action that lowers urgency does
+raise the health score, so it can still pulse via the score branch. ChoreBubbles Solo
+behaves identically. This resolves itself when service and board-reset are removed.
 
 **Pause machinery is cut deliberately.** ChoreBubbles needs pause-aware aging because
 vacations are real there. Here, schedule variance is absorbed by the quota model
