@@ -218,6 +218,12 @@ export default function HabitBubbles() {
         * { box-sizing: border-box; margin: 0; }
         button:active { transform: scale(0.96); }
         input { outline: none; }
+        .bubble-hit { outline: none; }
+        .bubble-hit:focus-visible {
+          outline: 3px solid ${theme.suggest};
+          outline-offset: 3px;
+          box-shadow: 0 0 0 6px ${theme.suggest}55;
+        }
       `}</style>
 
       {/* Header */}
@@ -363,7 +369,7 @@ export default function HabitBubbles() {
 
       {/* Simulation panel */}
       {simOpen && (
-        <Modal onClose={() => setSimOpen(false)}>
+        <Modal onClose={() => setSimOpen(false)} title="Time machine">
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700, marginBottom: 4 }}>Time machine 🧪</div>
           <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 16 }}>
             Fast-forward this phone&apos;s clock to preview how bubbles grow and how your rhythm moves. Test completions stay in a local sandbox and disappear when you return to today.
@@ -382,7 +388,7 @@ export default function HabitBubbles() {
 
       {/* One-time explanation */}
       {introOpen && (
-        <Modal onClose={dismissIntro}>
+        <Modal onClose={dismissIntro} title="How HabitBubbles works">
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 21, fontWeight: 700, marginBottom: 14 }}>How HabitBubbles works 🫧</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, color: theme.text, fontSize: 14, lineHeight: 1.45, marginBottom: 20 }}>
             <div><strong style={{ color: theme.zoneTop }}>1.</strong> Set how often you want to do each habit — daily, twice a week, every other day.</div>

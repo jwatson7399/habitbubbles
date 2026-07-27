@@ -108,7 +108,7 @@ export default function BubblesScreen({ habits, completions, simDays, popId, onC
       </div>
 
       {tapHabit && (
-        <Modal onClose={closeSheet}>
+        <Modal onClose={closeSheet} title={tapHabit.name}>
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700 }}>{tapHabit.name}</div>
           <div style={{ fontSize: 13, color: theme.textMuted, margin: "4px 0 16px" }}>
             {progress.done} of {progress.quota} {progress.label}

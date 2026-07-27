@@ -214,6 +214,17 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
     finishDrag(node, e.pointerId, false);
   };
 
+  // The bubble is a real <button>, so Enter/Space produce a native `click`
+  // (browsers set its `detail` to 0 for keyboard-triggered clicks, and to a
+  // positive count for pointer-triggered ones). Pointer-driven taps are
+  // already handled by finishDrag/onPointerUp using the drag-vs-tap `moved`
+  // flag, so this handler only needs to act on the keyboard case — otherwise
+  // a mouse tap would fire onTap twice, and a drag that happens to release
+  // over the button would fire onTap via the native click it also triggers.
+  const onClick = (e, node) => {
+    if (e.detail === 0) onTap(node.habit);
+  };
+
   return (
     <div ref={wrapRef} style={{ position: "relative", flex: 1, overflow: "hidden", touchAction: "none" }}>
       {(!habits || habits.length === 0) && (
@@ -234,8 +245,10 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
           ? `0 0 ${overdue ? 26 : 14}px ${n.hue}${overdue ? "AA" : "66"}, inset 0 0 12px rgba(255,255,255,0.25)`
           : "inset 0 0 10px rgba(255,255,255,0.18)";
         return (
-          <div
+          <button
             key={n.id}
+            type="button"
+            className="bubble-hit"
             aria-label={`${n.habit.name}, importance ${n.habit.importance}${suggested ? ", suggested habit" : ""}`}
             data-label-mode={!showInlineLabel ? "hidden" : compactLabel ? "compact" : "full"}
             onPointerDown={(e) => onPointerDown(e, n)}
@@ -243,6 +256,7 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
             onPointerUp={(e) => onPointerUp(e, n)}
             onPointerCancel={(e) => onPointerCancel(e, n)}
             onLostPointerCapture={(e) => onLostPointerCapture(e, n)}
+            onClick={(e) => onClick(e, n)}
             style={{
               position: "absolute",
               left: n.x - hitDiameter / 2,
@@ -255,6 +269,14 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
               cursor: dragRef.current && dragRef.current.id === n.id ? "grabbing" : "grab",
               userSelect: "none",
               WebkitTapHighlightColor: "transparent",
+              background: "none",
+              border: "none",
+              padding: 0,
+              margin: 0,
+              font: "inherit",
+              color: "inherit",
+              borderRadius: "50%",
+              touchAction: "none",
               zIndex: dragRef.current && dragRef.current.id === n.id
                 ? 6
                 : suggested
@@ -363,7 +385,7 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
                 </span>
               )}
             </div>
-          </div>
+          </button>
         );
       })}
     </div>

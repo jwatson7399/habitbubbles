@@ -152,7 +152,7 @@ export default function HabitsScreen({
       {children}
 
       {editing && (
-        <Modal onClose={close}>
+        <Modal onClose={close} title={editing.id ? "Edit habit" : "New habit"}>
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700, marginBottom: 14 }}>
             {editing.id ? "Edit habit" : "New habit"}
           </div>
