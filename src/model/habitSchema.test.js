@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { normalizeHabit, canLogCompletion, archiveHabit, unarchiveHabit } from "./habitSchema.js";
+import { creditedCompletions } from "./rhythmModel.js";
 import { DAY } from "./habitData.js";
 
 const NOW = 1750000000000;
@@ -14,7 +15,7 @@ describe("normalizeHabit", () => {
     expect(h.periodDays).toBe(1);
     expect(h.archived).toBe(false);
     expect(h.createdAt).toBe(NOW);
-    expect(h.anchorAt).toBe(NOW);
+    expect(h.anchorAt).toBe(NOW - DAY / 2);
     expect(typeof h.id).toBe("string");
   });
 
@@ -42,8 +43,8 @@ describe("normalizeHabit", () => {
     expect(h.anchorAt).toBe(9);
   });
 
-  it("defaults anchorAt to createdAt when absent", () => {
-    expect(normalizeHabit({ createdAt: 42 }, NOW).anchorAt).toBe(42);
+  it("offsets anchorAt back from createdAt by half a period when absent", () => {
+    expect(normalizeHabit({ createdAt: 42 }, NOW).anchorAt).toBe(42 - DAY / 2);
   });
 
   it("never produces NaN from garbage input", () => {
@@ -51,6 +52,33 @@ describe("normalizeHabit", () => {
     for (const v of [h.quota, h.periodDays, h.importance, h.effort, h.anchorAt]) {
       expect(Number.isNaN(v)).toBe(false);
     }
+  });
+
+  it("offsets a new habit's anchor by half a period", () => {
+    const h = normalizeHabit({ periodDays: 1 }, NOW);
+    expect(h.createdAt).toBe(NOW);
+    expect(h.anchorAt).toBe(NOW - DAY / 2);
+  });
+
+  it("scales the offset with the period length", () => {
+    expect(normalizeHabit({ periodDays: 7 }, NOW).anchorAt).toBe(NOW - 3.5 * DAY);
+    expect(normalizeHabit({ periodDays: 2 }, NOW).anchorAt).toBe(NOW - DAY);
+  });
+
+  it("still honours an explicitly supplied anchorAt", () => {
+    expect(normalizeHabit({ periodDays: 1, anchorAt: 42 }, NOW).anchorAt).toBe(42);
+  });
+
+  it("credits every day when a habit is performed near its creation time", () => {
+    // The residual this offset closes: without it, a habit done within minutes
+    // of its own anchor instant straddles the boundary most days.
+    const habit = normalizeHabit({ periodDays: 1, quota: 1 }, NOW - 30 * DAY);
+    const done = Array.from({ length: 14 }, (_, i) => ({
+      habitId: habit.id,
+      id: `n${i}`,
+      at: NOW - 30 * DAY + i * DAY + (i % 2 ? 5 : -5) * 60000,
+    }));
+    expect(creditedCompletions(habit, done)).toHaveLength(14);
   });
 });
 

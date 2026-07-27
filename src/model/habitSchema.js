@@ -1,4 +1,4 @@
-import { uid } from "./habitData.js";
+import { uid, DAY } from "./habitData.js";
 
 const clampInt = (value, min, max, fallback) => {
   const n = Math.round(Number(value));
@@ -10,7 +10,14 @@ export function normalizeHabit(raw, now) {
   const source = raw || {};
   const name = String(source.name ?? "").trim();
   const createdAt = Number.isFinite(Number(source.createdAt)) ? Number(source.createdAt) : now;
-  const anchorAt = Number.isFinite(Number(source.anchorAt)) ? Number(source.anchorAt) : createdAt;
+  const periodDays = clampInt(source.periodDays, 1, 60, 1);
+  const anchorAt = Number.isFinite(Number(source.anchorAt))
+    ? Number(source.anchorAt)
+    // Offset by half a period so the boundary sits as far as possible from the
+    // time of day the habit is actually performed. Without this, a habit done
+    // near its own creation time straddles the boundary most days and loses
+    // roughly half its credit.
+    : createdAt - (periodDays * DAY) / 2;
 
   return {
     id: source.id || uid(),
@@ -18,7 +25,7 @@ export function normalizeHabit(raw, now) {
     importance: clampInt(source.importance, 1, 5, 3),
     effort: clampInt(source.effort, 1, 5, 3),
     quota: clampInt(source.quota, 1, 20, 1),
-    periodDays: clampInt(source.periodDays, 1, 60, 1),
+    periodDays,
     createdAt,
     anchorAt,
     archived: !!source.archived,
