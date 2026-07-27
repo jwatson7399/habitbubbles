@@ -1,4 +1,5 @@
 import { DAY } from "./habitData.js";
+import { periodKey, currentPeriodKey } from "./habitPeriods.js";
 
 export const DEFAULT_RHYTHM_WINDOW_DAYS = 14;
 
@@ -70,4 +71,34 @@ export function rhythmZone(score, greenStart = DEFAULT_GREEN_START) {
   if (value >= green) return { key: "green", label: "On top of it! 👌", emoji: "👌" };
   if (value >= AMBER_START) return { key: "amber", label: "Maintaining 👍", emoji: "👍" };
   return { key: "red", label: "Getting started ⚠️", emoji: "⚠️" };
+}
+
+// A period qualifies if it holds at least `quota` credited completions. The
+// in-progress period can only help: if its quota is met it extends the streak,
+// and if not it is skipped rather than treated as a failure.
+export function quotaStreak(habit, completions, now) {
+  const credited = creditedCompletions(habit, completions);
+  if (!credited.length) return 0;
+
+  const counts = new Map();
+  for (const c of credited) {
+    const key = periodKey(habit, c.at);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+
+  const met = (key) => (counts.get(key) || 0) >= habit.quota;
+
+  const current = currentPeriodKey(habit, now);
+  let streak = 0;
+  let key = current;
+
+  if (met(current)) streak += 1;
+  key = current - 1;
+
+  while (met(key)) {
+    streak += 1;
+    key -= 1;
+  }
+
+  return streak;
 }

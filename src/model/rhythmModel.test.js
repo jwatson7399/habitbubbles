@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { creditedCompletions, attainment, isWarmingUp } from "./rhythmModel.js";
+import {
+  creditedCompletions,
+  attainment,
+  isWarmingUp,
+  rhythmScore,
+  rhythmZone,
+  quotaStreak,
+} from "./rhythmModel.js";
 import { DAY } from "./habitData.js";
 
 const NOW = 1750000000000;
@@ -86,8 +93,6 @@ describe("attainment", () => {
   });
 });
 
-import { rhythmScore, rhythmZone } from "./rhythmModel.js";
-
 describe("rhythmScore", () => {
   const seven = [
     { id: "med", quota: 1, periodDays: 1, anchorAt: NOW - 60 * DAY },
@@ -169,5 +174,47 @@ describe("rhythmZone", () => {
     expect(rhythmZone(0.9).emoji).toBe("👌");
     expect(rhythmZone(0.5).emoji).toBe("👍");
     expect(rhythmZone(0.1).emoji).toBe("⚠️");
+  });
+});
+
+describe("quotaStreak", () => {
+  const daily = { id: "h", quota: 1, periodDays: 1, anchorAt: NOW - 30 * DAY };
+  const weekly = { id: "h", quota: 2, periodDays: 7, anchorAt: NOW - 70 * DAY };
+
+  it("is 0 with no completions", () => {
+    expect(quotaStreak(daily, [], NOW)).toBe(0);
+  });
+
+  it("counts consecutive met periods", () => {
+    expect(quotaStreak(daily, [at(0), at(1), at(2)], NOW)).toBe(3);
+  });
+
+  it("does not break on an unmet in-progress period", () => {
+    // Yesterday and the day before were met; today is not done yet.
+    expect(quotaStreak(daily, [at(1), at(2), at(3)], NOW)).toBe(3);
+  });
+
+  it("extends when the in-progress period is met", () => {
+    expect(quotaStreak(daily, [at(0), at(1), at(2), at(3)], NOW)).toBe(4);
+  });
+
+  it("breaks on a closed unmet period", () => {
+    // Gap at 2 days ago.
+    expect(quotaStreak(daily, [at(0), at(1), at(3), at(4)], NOW)).toBe(2);
+  });
+
+  it("requires the full quota within a period", () => {
+    const oneOfTwo = [{ habitId: "h", id: "a", at: NOW - DAY }];
+    expect(quotaStreak(weekly, oneOfTwo, NOW)).toBe(0);
+  });
+
+  it("counts a multi-quota period once when quota is met", () => {
+    const met = [
+      { habitId: "h", id: "a", at: NOW - DAY },
+      { habitId: "h", id: "b", at: NOW - 2 * DAY },
+      { habitId: "h", id: "c", at: NOW - 8 * DAY },
+      { habitId: "h", id: "d", at: NOW - 9 * DAY },
+    ];
+    expect(quotaStreak(weekly, met, NOW)).toBe(2);
   });
 });
