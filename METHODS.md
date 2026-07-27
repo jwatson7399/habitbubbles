@@ -1,6 +1,6 @@
 # HabitBubbles — Design Specification
 
-**Status:** approved design, not yet implemented
+**Status:** implemented. Repo: `~/Claude Code/habitbubbles`.
 **Date:** 2026-07-26 (rev. 2 — banking, sizing floors, archive semantics)
 **Fork parent:** `chorebubbles-solo` (`f2ff135`)
 **Authors:** designed with Julian; reviewed against Codex critique across two rounds
@@ -10,8 +10,7 @@ family. It specifies the product model, the mathematics, the architecture, and t
 staged implementation path. It is the input to an implementation plan, not a plan
 itself.
 
-No folder or repository exists yet. Nothing in `chorebubbles` or `chorebubbles-solo`
-changes as a result of this document.
+Nothing in `chorebubbles` or `chorebubbles-solo` changes as a result of this document.
 
 ---
 
@@ -304,8 +303,15 @@ instant straddles the boundary most days: measured at ±5 minutes across the anc
 **8 of 14 credited, attainment 0.500**. The same jitter performed 12 hours off the
 anchor gives a clean 14/14. Setting `anchorAt` to creation time minus half a period
 would place the boundary maximally far from the habit's usual hour and close this, at
-the cost of an anchor that no longer equals `createdAt` on day one. **Open decision —
-not implemented.**
+the cost of an anchor that no longer equals `createdAt` on day one. **This was
+implemented**: `anchorAt = createdAt − periodDays/2`.
+
+**Known limitation under observation (found in final review).** The half-period offset
+assumes the habit is performed at a single consistent time of day. A user who performs
+a habit at two very different times — e.g. evenings on day-shift days, small hours after
+night shifts — can have two genuinely distinct real days collapse into the same anchored
+period, suppressing a streak that should have counted. This is an open issue, not yet
+addressed.
 
 - Meditate (1/1), tapped 7× today → first counts, rest excluded → **credit 1**
 - BJJ (2/7), three sessions Saturday → first two count → **credit 2**
@@ -505,7 +511,7 @@ src/
     habitHistory.js
     rhythmPulse.js
     suggestNow.js
-  storage.js                   local-only persistence + pending-op queue
+  storage.js                   local-only persistence (pending-op queue removed with sync)
   config.js
 ```
 
@@ -521,7 +527,7 @@ works against ChoreBubbles for the model-neutral parts.
 | `bubblePresentation.js` | 57 | Keep `clampBubbleRadius`, `bubbleHitDiameter`, `usesCompactBubbleLabel` and their constants. Drop `bubblePriority` and `rankBubbleTargets` — both encode chore urgency and relative ranking. |
 | `healthPulse.js` | 20 | → `rhythmPulse.js`. Detection keys on new completion IDs; the sequence-counter-as-React-key trick carries over intact. **The actor predicate cannot be dropped until service and board-reset are deleted** — see note below. |
 | `choreHistory.js` | 37 | → `habitHistory.js`. Drop service/reset labels; reframe impact as counted vs. over-quota. |
-| `storage.js` | 113 | Strip ~60 lines of Supabase auth (magic link, OTP, `getAuthSession`, `compareAndSetShared`). Keep local persistence and the pending-op queue. |
+| `storage.js` | 113 | Strip ~60 lines of Supabase auth (magic link, OTP, `getAuthSession`, `compareAndSetShared`). Keep local persistence; the pending-op queue was removed with sync. |
 | `logModel.js` | 215 | Replaced by `rhythmModel.js`. The ~50 lines of pause machinery (`pausedDuration`, `effectiveAge`) are deleted outright. |
 | `twoStepChore.js` | 66 | Deleted with its 88-line suite. |
 | `supabase-schema.sql` | — | Deleted. |
@@ -562,10 +568,9 @@ The op-replay pipeline is retained despite local-only operation, because **inver
 operations replayed through it** are what implement undo, and the same pipeline drives
 the time-machine sandbox.
 
-The **pending-operation queue is separate** and is persistence infrastructure for
-unsynced work — it does not itself power undo. With sync removed it may have no
-remaining job. Stage 3 evaluates stripping it; it is retained only if it earns its
-place.
+The **pending-operation queue was separate** persistence infrastructure for unsynced
+work — it did not itself power undo. It was removed along with sync, since it had no
+remaining job once sync was cut.
 
 **The time machine is kept**, relabelled away from chore vocabulary. Scrubbing forward
 is how quota fill decay can be observed and trusted before shipping, and it doubles as

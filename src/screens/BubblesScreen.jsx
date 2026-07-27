@@ -55,7 +55,10 @@ export default function BubblesScreen({ habits, completions, simDays, popId, onC
       showToast("That's before this habit started tracking.");
       return;
     }
-    if (onComplete(tapHabit, tapWhenDays)) closeSheet();
+    if (onComplete(tapHabit, tapWhenDays)) {
+      if (suggestedHabitId === tapHabit.id) setSuggestedHabitId(null);
+      closeSheet();
+    }
   };
 
   const suggestions = rankSuggestions(habits, completions, clockNow());

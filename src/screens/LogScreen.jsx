@@ -60,7 +60,7 @@ export default function LogScreen({ habits, completions, rhythmWindowDays, green
                 {Math.round(score * 100)}%
               </span>
               <span style={{ fontSize: 14, fontWeight: 700, color: zoneColor, whiteSpace: "nowrap" }}>
-                {zone.emoji} {zone.label}
+                {zone.label}
               </span>
             </div>
             <RhythmBar score={score} greenStart={greenStart} height={12} />

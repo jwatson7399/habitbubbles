@@ -71,16 +71,18 @@ export default function HabitsScreen({
       <div
         key={habit.id}
         role="button"
-        tabIndex={0}
+        tabIndex={readOnly ? -1 : 0}
+        aria-disabled={readOnly}
         aria-label={`Open ${habit.name} details and history`}
-        onClick={() => openExisting(habit)}
+        onClick={() => { if (!readOnly) openExisting(habit); }}
         onKeyDown={(event) => {
+          if (readOnly) return;
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             openExisting(habit);
           }
         }}
-        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid #1A3542", cursor: "pointer" }}
+        style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid #1A3542", cursor: readOnly ? "default" : "pointer", opacity: readOnly ? 0.6 : 1 }}
       >
         <div style={{ width: 14, height: 14, borderRadius: "50%", background: bubbleHue(i), flexShrink: 0, opacity: habit.archived ? 0.4 : 1 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -147,19 +149,21 @@ export default function HabitsScreen({
             {editing.id ? "Edit habit" : "New habit"}
           </div>
           <HabitEditor value={editing} onChange={(patch) => setEditing({ ...editing, ...patch })} completions={completions} />
+          {readOnly && <div style={{ color: "#FFC65E", fontSize: 12.5, marginTop: 10 }}>Preview mode is read-only — changes here won&apos;t be saved.</div>}
           <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
             {editing.id && !editing.archived && (
-              <button onClick={archive} style={{ ...btnStyle("#0F2530", "#FFC65E"), flex: 1, border: "1px solid #1E4152" }}>Archive</button>
+              <button disabled={readOnly} onClick={archive} style={{ ...btnStyle("#0F2530", "#FFC65E"), flex: 1, border: "1px solid #1E4152", opacity: readOnly ? 0.45 : 1 }}>Archive</button>
             )}
             {editing.id && editing.archived && (
-              <button onClick={unarchive} style={{ ...btnStyle("#0F2530", "#5FE0BB"), flex: 1, border: "1px solid #1E4152" }}>Unarchive</button>
+              <button disabled={readOnly} onClick={unarchive} style={{ ...btnStyle("#0F2530", "#5FE0BB"), flex: 1, border: "1px solid #1E4152", opacity: readOnly ? 0.45 : 1 }}>Unarchive</button>
             )}
             {editing.id && (
-              <button onClick={remove} style={{ ...btnStyle("#0F2530", "#FF8B7B"), flex: 1, border: "1px solid #1E4152" }}>Delete</button>
+              <button disabled={readOnly} onClick={remove} style={{ ...btnStyle("#0F2530", "#FF8B7B"), flex: 1, border: "1px solid #1E4152", opacity: readOnly ? 0.45 : 1 }}>Delete</button>
             )}
             <button
+              disabled={readOnly}
               onClick={save}
-              style={{ ...btnStyle("#5FE0BB"), flex: 2, opacity: editing.name.trim() ? 1 : 0.5 }}
+              style={{ ...btnStyle("#5FE0BB"), flex: 2, opacity: readOnly ? 0.45 : editing.name.trim() ? 1 : 0.5 }}
             >
               Save habit
             </button>

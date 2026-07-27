@@ -88,8 +88,9 @@ export default function HabitBubbles() {
       return true;
     }
     const stamped = { ...operation, id: operation.id || uid(), createdAt: realNow() };
-    const next = applyOperation(dataRef.current, stamped);
+    const next = applyOperation(normalizeData(getRecord()), stamped);
     saveRecord(next);
+    dataRef.current = next;
     setData(next);
     return true;
   }, []);
