@@ -35,10 +35,18 @@ describe("rankSuggestions", () => {
     expect(ids).toEqual(["b"]);
   });
 
-  it("excludes warming-up habits", () => {
+  it("still suggests a warming-up habit", () => {
+    // Warm-up withholds scoring, not recommending. Excluding these left the
+    // feature dead for a new user's entire first period.
     const habits = [habit("new", { anchorAt: NOW - DAY / 2 }), habit("old")];
     const ids = rankSuggestions(habits, [], NOW).map((h) => h.id);
-    expect(ids).toEqual(["old"]);
+    expect(ids).toContain("new");
+    expect(ids).toHaveLength(2);
+  });
+
+  it("suggests something on a brand-new install where every habit is warming up", () => {
+    const fresh = ["a", "b", "c"].map((id) => habit(id, { anchorAt: NOW - DAY / 2 }));
+    expect(rankSuggestions(fresh, [], NOW)).toHaveLength(3);
   });
 
   it("breaks exact ties by importance then by older anchor", () => {

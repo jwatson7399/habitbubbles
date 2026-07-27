@@ -428,8 +428,15 @@ ahead of a two-hour training session, which is the point of carrying `effort` at
 The `0.15` coefficient is deliberately small — effort should break ties, never override
 a genuinely urgent habit.
 
-Ties break by higher importance, then by older `anchorAt`. Archived and warming-up
-habits are excluded.
+Ties break by higher importance, then by older `anchorAt`. **Only archived habits are
+excluded** — the user has said they are not doing those.
+
+**Amended after first use.** This originally excluded warming-up habits too, which was
+wrong: it left the feature dead for a new user's entire first period, since every habit
+on a fresh install is warming up. Verified in the running app — the button rendered
+`disabled` with all seven starter habits loaded. Warm-up exists so a habit is not
+*scored* before it has had a fair chance; that is not a reason to stop *recommending*
+one, and "what should I do now?" is asked most on day one.
 
 The coefficient and the tiebreaker order are **tuning parameters**, expected to be
 revised against the real seven-habit field. A "quick wins only" time filter is the

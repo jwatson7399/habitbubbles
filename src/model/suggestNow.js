@@ -1,6 +1,5 @@
 import { habitPressure } from "./habitPressure.js";
 import { habitPriority } from "./habitPriority.js";
-import { isWarmingUp } from "./rhythmModel.js";
 
 // Effort coefficient is deliberately small: it should surface a five-minute
 // habit ahead of an hour-long one at similar urgency, never outrank a habit
@@ -13,9 +12,14 @@ export function suggestionScore(habit, pressure) {
   return priority - effortPenalty;
 }
 
+// Warming-up habits are deliberately INCLUDED. Warm-up exists so a habit is not
+// scored before it has had a fair chance — it is not a reason to stop
+// recommending one. Excluding them left this feature dead for a new user's
+// entire first period, which is exactly when "what should I do now?" is asked.
+// Only archived habits are out: the user has said they are not doing those.
 export function rankSuggestions(habits, completions, now) {
   return (habits || [])
-    .filter((h) => !h.archived && !isWarmingUp(h, now))
+    .filter((h) => !h.archived)
     .map((h) => ({ habit: h, score: suggestionScore(h, habitPressure(h, completions, now)) }))
     .sort(
       (a, b) =>
