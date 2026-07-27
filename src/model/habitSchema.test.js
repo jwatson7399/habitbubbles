@@ -9,6 +9,7 @@ describe("normalizeHabit", () => {
   it("fills defaults for an empty habit", () => {
     const h = normalizeHabit({}, NOW);
     expect(h.name).toBe("Habit");
+    expect(h.details).toBe("");
     expect(h.importance).toBe(3);
     expect(h.effort).toBe(3);
     expect(h.quota).toBe(1);
@@ -35,6 +36,17 @@ describe("normalizeHabit", () => {
   it("trims the name and falls back when blank", () => {
     expect(normalizeHabit({ name: "  Meditate  " }, NOW).name).toBe("Meditate");
     expect(normalizeHabit({ name: "   " }, NOW).name).toBe("Habit");
+  });
+
+  it("normalizes optional details without coercing non-strings", () => {
+    expect(normalizeHabit({}, NOW).details).toBe("");
+    expect(normalizeHabit({ details: "   " }, NOW).details).toBe("");
+    expect(normalizeHabit({ details: "  Includes wiping the sink.  " }, NOW).details)
+      .toBe("Includes wiping the sink.");
+    expect(normalizeHabit({ details: "x".repeat(501) }, NOW).details).toHaveLength(500);
+    for (const details of [{ note: "no" }, 42, null]) {
+      expect(normalizeHabit({ details }, NOW).details).toBe("");
+    }
   });
 
   it("preserves an existing anchorAt and createdAt", () => {

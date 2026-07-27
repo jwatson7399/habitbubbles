@@ -9,6 +9,9 @@ const clampInt = (value, min, max, fallback) => {
 export function normalizeHabit(raw, now) {
   const source = raw || {};
   const name = String(source.name ?? "").trim();
+  const details = typeof source.details === "string"
+    ? source.details.trim().slice(0, 500)
+    : "";
   const createdAt = Number.isFinite(Number(source.createdAt)) ? Number(source.createdAt) : now;
   const periodDays = clampInt(source.periodDays, 1, 60, 1);
   const anchorAt = Number.isFinite(Number(source.anchorAt))
@@ -22,6 +25,7 @@ export function normalizeHabit(raw, now) {
   return {
     id: source.id || uid(),
     name: name || "Habit",
+    details,
     importance: clampInt(source.importance, 1, 5, 3),
     effort: clampInt(source.effort, 1, 5, 3),
     quota: clampInt(source.quota, 1, 20, 1),

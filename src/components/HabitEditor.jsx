@@ -36,6 +36,7 @@ export function cadenceLabel(quota, periodDays) {
 // so the same panel that edits a habit is the one that shows how it's going.
 export function HabitEditor({ value, onChange, completions }) {
   const history = value.id ? habitHistoryFor(completions, value.id) : [];
+  const detailsLength = typeof value.details === "string" ? value.details.length : 0;
 
   return (
     <section>
@@ -71,6 +72,24 @@ export function HabitEditor({ value, onChange, completions }) {
       <div style={{ marginTop: 4, marginBottom: 14, padding: "10px 14px", background: theme.night, border: `1px solid ${theme.surfaceRaised}`, borderRadius: 12, color: theme.zoneTop, fontSize: 13.5, fontWeight: 600 }}>
         This means: {cadenceLabel(value.quota, value.periodDays)}
       </div>
+
+      <label style={{ display: "block", marginBottom: 14 }}>
+        <span style={{ display: "block", color: theme.text, fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
+          Details
+        </span>
+        <textarea
+          rows={3}
+          value={typeof value.details === "string" ? value.details : ""}
+          placeholder="What counts as done? e.g. includes wiping the sink"
+          onChange={(event) => onChange({ details: event.target.value })}
+          style={{ width: "100%", resize: "vertical", background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: "12px 14px", color: theme.text, fontSize: 14, lineHeight: 1.45, fontFamily: "inherit", outline: "none" }}
+        />
+        {detailsLength > 400 && (
+          <span style={{ display: "block", marginTop: 4, color: detailsLength > 500 ? theme.danger : theme.textMuted, fontSize: 11.5, textAlign: "right" }}>
+            {detailsLength} / 500{detailsLength > 500 ? " · extra text will be trimmed" : ""}
+          </span>
+        )}
+      </label>
 
       {value.id && (
         <section style={{ marginTop: 10, paddingTop: 14, borderTop: `1px solid ${theme.borderStrong}` }}>
