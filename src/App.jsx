@@ -16,11 +16,10 @@ import {
   weeklyPoints,
 } from "./logModel.js";
 import {
-  choreHistoryFor,
-  completionActor,
+  habitHistoryFor,
   completionImpact,
   lastDoneLabel,
-} from "./choreHistory.js";
+} from "./model/habitHistory.js";
 import { completionIds, shouldPulseRhythm } from "./model/rhythmPulse.js";
 import { DAY, uid, defaultData, normalizeData, applyOperation } from "./model/habitData.js";
 import { lastDone, urgencyOf, healthScore } from "./model/choreMath.js";
@@ -351,7 +350,7 @@ export default function HabitBubbles() {
   const healthColor = healthPct >= 80 ? "#5FE0BB" : healthPct >= 50 ? "#FFC65E" : "#FF8B7B";
   const recent = [...view.completions].sort((a, b) => b.ts - a.ts).slice(0, 30);
   const choreHistories = new Map(
-    view.chores.map((chore) => [chore.id, choreHistoryFor(view.completions, chore.id)])
+    view.chores.map((chore) => [chore.id, habitHistoryFor(view.completions, chore.id)])
   );
   const editChoreHistory = editChore?.id ? choreHistories.get(editChore.id) || [] : [];
   const suggestedBubbleIds = new Set(
@@ -568,11 +567,11 @@ export default function HabitBubbles() {
                   {c.by === "service" ? "🧹 " : c.by === "reset" ? "🔄 " : ""}{c.choreName}
                 </div>
                 <div style={{ fontSize: 12, color: "#7FA3AC" }}>
-                  {completionActor(c, settings)} · {timeAgo(c.ts)}
+                  {timeAgo(c.ts)}
                 </div>
               </div>
               <div style={{ fontSize: 13, color: c.by === "service" || c.by === "reset" ? "#7FA3AC" : "#5FE0BB", fontWeight: 700, whiteSpace: "nowrap" }}>
-                {completionImpact(c, settings)}
+                {completionImpact(view.chores.find((ch) => ch.id === c.choreId) || {}, view.completions, c)}
               </div>
               <button
                 onClick={() => removeCompletion(c)}
@@ -638,7 +637,7 @@ export default function HabitBubbles() {
                   >
                     <span aria-hidden="true">{latest ? (resetEntry ? "↻" : "✓") : "○"}</span>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {lastDoneLabel(latest, settings)}{latest ? ` · ${timeAgo(latest.ts)}` : ""}
+                      {lastDoneLabel(latest, now())}{latest ? ` · ${timeAgo(latest.ts)}` : ""}
                     </span>
                   </div>
                 </div>
@@ -817,15 +816,12 @@ export default function HabitBubbles() {
                     return (
                       <div key={entry.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid #1A3542" }}>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ color: "#E8F3F4", fontSize: 13.5, fontWeight: 700 }}>
-                            {completionActor(entry, settings)}
-                          </div>
                           <div style={{ color: "#7FA3AC", fontSize: 11.5, marginTop: 1 }}>
                             {historyDate(entry.ts)} · {timeAgo(entry.ts)}
                           </div>
                         </div>
                         <div style={{ color: resetEntry ? "#9FB6BC" : "#5FE0BB", fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" }}>
-                          {completionImpact(entry, settings)}
+                          {completionImpact(editChore || {}, view.completions, entry)}
                         </div>
                       </div>
                     );

@@ -11,8 +11,8 @@ export function faceFor(pct) {
   return "🥀";
 }
 
-export function timeAgo(ts) {
-  const m = Math.floor((now() - ts) / 60000);
+export function timeAgo(ts, nowMs = now()) {
+  const m = Math.floor((nowMs - ts) / 60000);
   if (m < 1) return "just now";
   if (m < 60) return m + "m ago";
   const h = Math.floor(m / 60);
