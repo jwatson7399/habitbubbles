@@ -8,7 +8,6 @@ import {
   INTRO_KEY,
 } from "./storage.js";
 import {
-  effortZone,
   effortZoneThresholds,
   pointsInActivePeriod,
   soloStreak,
@@ -21,8 +20,9 @@ import {
   lastDoneLabel,
 } from "./model/habitHistory.js";
 import { completionIds, shouldPulseRhythm } from "./model/rhythmPulse.js";
-import { DAY, uid, defaultData, normalizeData, applyOperation } from "./model/habitData.js";
-import { lastDone, urgencyOf, healthScore } from "./model/choreMath.js";
+import { rhythmScore, rhythmZone } from "./model/rhythmModel.js";
+import { DAY, uid, defaultData, normalizeData, applyOperation, STARTER_HABITS } from "./model/habitData.js";
+import { normalizeHabit, canLogCompletion } from "./model/habitSchema.js";
 import { faceFor, timeAgo, historyDate } from "./utils/format.js";
 import { realNow, now, setTimeOffset } from "./utils/clock.js";
 import { Modal } from "./components/Modal.jsx";
@@ -36,18 +36,13 @@ import BubbleField, { bubbleHue } from "./components/BubbleField.jsx";
 // Bubbles swell as opportunities come due. Tap to complete, drag to rearrange.
 
 
-const STARTERS = [
-  { name: "Dishes", importance: 4, difficulty: 1, freqDays: 1, service: false },
-  { name: "Kitchen counters", importance: 4, difficulty: 1, freqDays: 2, service: true },
-  { name: "Trash + recycling", importance: 3, difficulty: 1, freqDays: 3, service: false },
-  { name: "Laundry", importance: 4, difficulty: 2, freqDays: 4, service: false },
-  { name: "Vacuum floors", importance: 3, difficulty: 2, freqDays: 7, service: true },
-  { name: "Bathroom clean", importance: 4, difficulty: 3, freqDays: 7, service: true },
-  { name: "Change sheets", importance: 3, difficulty: 2, freqDays: 14, service: false },
-  { name: "Mop floors", importance: 2, difficulty: 3, freqDays: 14, service: true },
-  { name: "Fridge clean-out", importance: 2, difficulty: 2, freqDays: 14, service: false },
-  { name: "Dust surfaces", importance: 2, difficulty: 2, freqDays: 14, service: true },
-];
+// Bridges ChoreFields' vocabulary (difficulty/freqDays) to the habit schema's
+// (effort/periodDays) without touching ChoreFields itself — that rewrite is
+// Task 8's job. Spreading the source first means every other habit field
+// (id, createdAt, anchorAt, periodDays, effort, quota, archived) survives the
+// round trip untouched; only the two aliased keys are added or overridden.
+const habitToFields = (h) => ({ ...h, difficulty: h.effort, freqDays: h.periodDays });
+const fieldsToHabit = (f) => ({ ...f, effort: f.difficulty, periodDays: f.freqDays });
 
 // ---------- Main app ----------
 export default function HabitBubbles() {
@@ -55,8 +50,6 @@ export default function HabitBubbles() {
   const [tab, setTab] = useState("bubbles");
   const [tapChore, setTapChore] = useState(null);
   const [tapWhenDays, setTapWhenDays] = useState(0);
-  const [serviceOpen, setServiceOpen] = useState(false);
-  const [serviceSel, setServiceSel] = useState({});
   const [editChore, setEditChore] = useState(null);
   const [toast, setToast] = useState(null);
   const [popId, setPopId] = useState(null);
@@ -93,12 +86,13 @@ export default function HabitBubbles() {
     const { greenMin } = effortZoneThresholds(goal, view.settings?.greenStart);
     const previousPoints = pointsInActivePeriod(view.completions, "owner", [], at, 1);
     const streak = soloStreak(view.completions, greenMin, [], at);
-    const urgencyById = Object.fromEntries(
-      view.chores.map((chore) => [chore.id, urgencyOf(chore, view.completions, [])])
-    );
+    // suggestCombo ranks by logModel's chore-era `difficulty`/urgency fields,
+    // which habits no longer carry (Task 7 rewrites this into a rhythm-based
+    // suggestion). Passing habits through still degrades safely to "no
+    // suggestion" rather than crashing.
     const gap = Math.max(0, greenMin - points);
     const suggestion = gap > 0
-      ? suggestCombo(view.chores, gap, urgencyById, suggestionSeed)
+      ? suggestCombo(view.habits, gap, {}, suggestionSeed)
       : null;
 
     return {
@@ -225,92 +219,61 @@ export default function HabitBubbles() {
   // effort points back off, and regrows that chore's bubble. Undoable.
   const removeCompletion = (entry) => {
     if (!commit({ type: "completion:remove", ids: [entry.id] })) return;
-    showToast(`Removed ${entry.choreName}`, () => {
+    showToast(`Removed ${entry.habitName}`, () => {
       commit({ type: "completion:add", completion: entry });
       setToast(null);
     });
   };
 
-  const logCompletion = (chore) => {
-    // "when" lets you backdate a chore you forgot to log (e.g. done yesterday).
-    const ts = now() - tapWhenDays * DAY;
-    const comp = {
-      id: uid(),
-      choreId: chore.id,
-      choreName: chore.name,
-      difficulty: chore.difficulty,
-      by: "owner",
-      ts,
-    };
+  const logCompletion = (habit) => {
+    // "when" lets you backdate a habit you forgot to log (e.g. done yesterday).
+    const at = now() - tapWhenDays * DAY;
+    if (!canLogCompletion(habit, at)) {
+      showToast("That's before this habit started tracking.");
+      return;
+    }
+    const comp = { id: uid(), habitId: habit.id, habitName: habit.name, at };
     if (!commit({ type: "completion:add", completion: comp })) return;
     setTapChore(null);
     setTapWhenDays(0);
-    setPopId(chore.id);
+    setPopId(habit.id);
     if (popTimer.current) clearTimeout(popTimer.current);
     popTimer.current = setTimeout(() => setPopId(null), 1000);
     const when = tapWhenDays === 0 ? "" : tapWhenDays === 1 ? " (yesterday)" : ` (${tapWhenDays}d ago)`;
-    showToast(`${chore.name} done${when}`, () => {
+    showToast(`${habit.name} done${when}`, () => {
       commit({ type: "completion:remove", ids: [comp.id] });
       setToast(null);
     });
   };
 
-  const openService = () => {
-    const sel = {};
-    for (const ch of view.chores) sel[ch.id] = !!ch.service;
-    setServiceSel(sel);
-    setServiceOpen(true);
-  };
-
-  const confirmService = () => {
-    const ts = now();
-    const comps = view.chores
-      .filter((ch) => serviceSel[ch.id])
-      .map((ch) => ({ id: uid(), choreId: ch.id, choreName: ch.name, difficulty: ch.difficulty, by: "service", ts }));
-    if (!commit({ type: "completion:add-many", completions: comps })) return;
-    setServiceOpen(false);
-    showToast(`Cleaning service logged: ${comps.length} chores reset`, () => {
-      commit({ type: "completion:remove", ids: comps.map((c) => c.id) });
-      setToast(null);
-    });
-  };
-
-  const saveChore = (ch) => {
-    const chore = ch.id ? ch : { ...ch, id: uid(), createdAt: realNow() };
-    if (commit({ type: "chore:upsert", chore })) setEditChore(null);
+  const saveChore = (fields) => {
+    const habit = normalizeHabit(fieldsToHabit(fields), now());
+    if (commit({ type: "habit:upsert", habit })) setEditChore(null);
   };
 
   const deleteChore = (id) => {
-    if (commit({ type: "chore:delete", choreId: id })) setEditChore(null);
+    if (commit({ type: "habit:delete", habitId: id })) setEditChore(null);
   };
 
   const addStarters = () => {
-    const chores = STARTERS.map((s) => ({ ...s, id: uid(), createdAt: realNow() }));
-    commit({ type: "chore:add-many", chores });
+    const habits = STARTER_HABITS.map((h) => normalizeHabit(h, now()));
+    commit({ type: "habit:add-many", habits });
   };
 
   const clearChores = () => {
-    commit({ type: "chore:clear" });
+    commit({ type: "habit:clear" });
     setEditChore(null);
     showToast("All chores cleared");
   };
 
-  // Mark every chore as just done (no points) — for coming back after time away.
-  // Resets bubble sizes and health without crediting anyone.
-  const resetBubbles = () => {
-    const ts = realNow();
-    const comps = view.chores.map((ch) => ({ id: uid(), choreId: ch.id, choreName: ch.name, difficulty: ch.difficulty, by: "reset", ts }));
-    if (comps.length === 0) return;
-    commit({ type: "completion:add-many", completions: comps });
-    showToast("Board reset — every chore marked fresh");
-  };
-
-  // Pulse for every newly observed personal completion, including a gain too
-  // small to change the rounded percentage. Exact score comparisons preserve
-  // the previous behavior for other health improvements.
+  // Pulse for every newly observed completion, including a gain too small to
+  // change the rounded percentage. Exact score comparisons preserve the
+  // previous behavior for other rhythm improvements. Uses view.settings
+  // directly (not the `settings` destructured later in render) because this
+  // effect is declared before that destructuring is in scope.
   useEffect(() => {
     if (!view) return;
-    const score = healthScore(view.chores, view.completions, []);
+    const score = rhythmScore(view.habits, view.completions, now(), view.settings?.rhythmWindowDays);
     if (shouldPulseRhythm(
       prevHealthRef.current,
       score,
@@ -345,18 +308,24 @@ export default function HabitBubbles() {
     gap,
     suggestion,
   } = logStats;
-  const health = healthScore(view.chores, view.completions, []);
-  const healthPct = Math.round(health * 100);
-  const healthColor = healthPct >= 80 ? "#5FE0BB" : healthPct >= 50 ? "#FFC65E" : "#FF8B7B";
-  const recent = [...view.completions].sort((a, b) => b.ts - a.ts).slice(0, 30);
+  // Rhythm replaces the old chore-era healthScore. `rhythm` is null while
+  // every habit is still warming up (its first period hasn't elapsed) — that
+  // must render as a distinct "warming up" state, not a fabricated 0%, or a
+  // brand-new user's blank slate would read as failure (rhythmZone(null)
+  // resolves to the red "Getting started ⚠️" zone).
+  const rhythm = rhythmScore(view.habits, view.completions, now(), settings.rhythmWindowDays);
+  const rhythmZoneInfo = rhythm == null ? null : rhythmZone(rhythm, settings.greenStart);
+  const healthPct = rhythm == null ? null : Math.round(rhythm * 100);
+  const healthColor = !rhythmZoneInfo ? "#7FA3AC" : rhythmZoneInfo.key === "green" ? "#5FE0BB" : rhythmZoneInfo.key === "amber" ? "#FFC65E" : "#FF8B7B";
+  const recent = [...view.completions].sort((a, b) => b.at - a.at).slice(0, 30);
   const choreHistories = new Map(
-    view.chores.map((chore) => [chore.id, habitHistoryFor(view.completions, chore.id)])
+    view.habits.map((habit) => [habit.id, habitHistoryFor(view.completions, habit.id)])
   );
   const editChoreHistory = editChore?.id ? choreHistories.get(editChore.id) || [] : [];
   const suggestedBubbleIds = new Set(
     bubbleSuggestionsVisible && suggestion ? suggestion.chores.map((chore) => chore.id) : []
   );
-  const canShuffleSuggestions = !!suggestion && view.chores.length > 0;
+  const canShuffleSuggestions = !!suggestion && view.habits.length > 0;
   const shuffleSuggestions = () => {
     if (!canShuffleSuggestions) return;
     setBubbleSuggestionsVisible(true);
@@ -404,59 +373,67 @@ export default function HabitBubbles() {
         </div>
       </div>
 
-      {/* Home health bar */}
-      {view.chores.length > 0 && (
+      {/* Rhythm bar */}
+      {view.habits.length > 0 && (
         <div style={{ padding: "2px 20px 10px" }}>
-          <div style={{ textAlign: "center", marginBottom: 2 }}>
-            <span
-              key={faceFor(healthPct)}
-              style={{
-                fontSize: 30,
-                display: "inline-block",
-                animation: healthPct >= 90 ? "breathe 4s ease-in-out infinite" : healthPct < 15 ? "wilt 3.5s ease-in-out infinite" : "none",
-                transition: "transform 0.5s ease",
-              }}
-            >
-              {faceFor(healthPct)}
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 5 }}>
-            <span style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 13, fontWeight: 600, color: "#B9D2D8", letterSpacing: 0.4 }}>My home&apos;s health</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: healthPulse ? "#5FE0BB" : healthColor, transition: "color 0.5s ease" }}>
-              {healthPct}%
-            </span>
-          </div>
-          <div style={{ position: "relative", height: 10, borderRadius: 6, background: "#0F2530", border: "1px solid #1E4152", overflow: "visible" }}>
-            <div
-              key={`health-fill-${healthPulse}`}
-              style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: `${healthPct}%`,
-                borderRadius: 6,
-                background: healthPulse
-                  ? "linear-gradient(to right, #5FE0BB99, #5FE0BB)"
-                  : `linear-gradient(to right, ${healthColor}99, ${healthColor})`,
-                boxShadow: healthPulse
-                  ? "0 0 20px #5FE0BBCC"
-                  : healthPct >= 80
-                  ? `0 0 10px ${healthColor}88`
-                  : "none",
-                animation: healthPulse ? "barSwell 1.4s ease-out" : "none",
-                transformOrigin: "left center",
-                transition: "width 0.8s ease, background 0.5s ease, box-shadow 0.5s ease",
-              }}
-            />
-          </div>
+          {healthPct === null ? (
+            <div style={{ textAlign: "center", color: "#7FA3AC", fontSize: 13, padding: "8px 0" }}>
+              🌱 Warming up — your rhythm shows once a habit has run a full period.
+            </div>
+          ) : (
+            <>
+              <div style={{ textAlign: "center", marginBottom: 2 }}>
+                <span
+                  key={faceFor(healthPct)}
+                  style={{
+                    fontSize: 30,
+                    display: "inline-block",
+                    animation: healthPct >= 90 ? "breathe 4s ease-in-out infinite" : healthPct < 15 ? "wilt 3.5s ease-in-out infinite" : "none",
+                    transition: "transform 0.5s ease",
+                  }}
+                >
+                  {faceFor(healthPct)}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 5 }}>
+                <span style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 13, fontWeight: 600, color: "#B9D2D8", letterSpacing: 0.4 }}>My rhythm</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: healthPulse ? "#5FE0BB" : healthColor, transition: "color 0.5s ease" }}>
+                  {healthPct}%
+                </span>
+              </div>
+              <div style={{ position: "relative", height: 10, borderRadius: 6, background: "#0F2530", border: "1px solid #1E4152", overflow: "visible" }}>
+                <div
+                  key={`health-fill-${healthPulse}`}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: `${healthPct}%`,
+                    borderRadius: 6,
+                    background: healthPulse
+                      ? "linear-gradient(to right, #5FE0BB99, #5FE0BB)"
+                      : `linear-gradient(to right, ${healthColor}99, ${healthColor})`,
+                    boxShadow: healthPulse
+                      ? "0 0 20px #5FE0BBCC"
+                      : healthPct >= 80
+                      ? `0 0 10px ${healthColor}88`
+                      : "none",
+                    animation: healthPulse ? "barSwell 1.4s ease-out" : "none",
+                    transformOrigin: "left center",
+                    transition: "width 0.8s ease, background 0.5s ease, box-shadow 0.5s ease",
+                  }}
+                />
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {/* Body */}
       {tab === "bubbles" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-          {view.chores.length > 0 && (
+          {view.habits.length > 0 && (
             <div style={{ padding: "2px 20px 8px" }}>
               <CompactBar name={settings.ownerName} points={points} goal={goal} greenStart={settings.greenStart} />
             </div>
@@ -493,9 +470,6 @@ export default function HabitBubbles() {
                 </button>
               )}
             </div>
-            <button onClick={openService} style={{ ...btnStyle("#0F2530", "#5FE0BB"), width: "100%", border: "1px solid #1E4152" }}>
-              🧹 Cleaning service came
-            </button>
           </div>
         </div>
       )}
@@ -536,7 +510,7 @@ export default function HabitBubbles() {
                   {suggestion ? (
                     <>
                       <div style={{ color: "#E8F3F4", fontSize: 14, lineHeight: 1.5, marginTop: 8 }}>
-                        Try: {suggestion.chores.map((chore) => `${chore.name} (${chore.difficulty})`).join(" + ")}
+                        Try: {suggestion.chores.map((chore) => `${chore.name} (${chore.effort})`).join(" + ")}
                       </div>
                       <div style={{ color: "#B9D2D8", fontSize: 12, marginTop: 3 }}>
                         {suggestion.reachesGap
@@ -564,18 +538,18 @@ export default function HabitBubbles() {
             <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: "1px solid #1A3542" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>
-                  {c.by === "service" ? "🧹 " : c.by === "reset" ? "🔄 " : ""}{c.choreName}
+                  {c.habitName}
                 </div>
                 <div style={{ fontSize: 12, color: "#7FA3AC" }}>
-                  {timeAgo(c.ts)}
+                  {timeAgo(c.at)}
                 </div>
               </div>
-              <div style={{ fontSize: 13, color: c.by === "service" || c.by === "reset" ? "#7FA3AC" : "#5FE0BB", fontWeight: 700, whiteSpace: "nowrap" }}>
-                {completionImpact(view.chores.find((ch) => ch.id === c.choreId) || {}, view.completions, c)}
+              <div style={{ fontSize: 13, color: "#5FE0BB", fontWeight: 700, whiteSpace: "nowrap" }}>
+                {completionImpact(view.habits.find((h) => h.id === c.habitId) || {}, view.completions, c)}
               </div>
               <button
                 onClick={() => removeCompletion(c)}
-                aria-label={`Delete ${c.choreName}`}
+                aria-label={`Delete ${c.habitName}`}
                 style={{ ...btnStyle("#0F2530", "#FF8B7B"), padding: "5px 10px", fontSize: 13, border: "1px solid #1E4152", lineHeight: 1, flexShrink: 0 }}
               >
                 ✕
@@ -591,25 +565,25 @@ export default function HabitBubbles() {
           <button disabled={simDays > 0} onClick={() => setEditChore({ name: "", importance: 3, difficulty: 2, freqDays: 7, service: false })} style={{ ...btnStyle("#5FE0BB"), width: "100%", marginBottom: 10, opacity: simDays > 0 ? 0.45 : 1 }}>
             + Add chore
           </button>
-          {view.chores.length === 0 && (
+          {view.habits.length === 0 && (
             <button disabled={simDays > 0} onClick={addStarters} style={{ ...btnStyle("#0F2530", "#B9D2D8"), width: "100%", marginBottom: 10, border: "1px solid #1E4152", opacity: simDays > 0 ? 0.45 : 1 }}>
               Load a starter list of common chores
             </button>
           )}
-          {view.chores.map((ch, i) => {
+          {view.habits.map((ch, i) => {
             const latest = choreHistories.get(ch.id)?.[0];
-            const resetEntry = latest?.by === "service" || latest?.by === "reset";
+            const resetEntry = false;
             return (
               <div
                 key={ch.id}
                 role="button"
                 tabIndex={0}
                 aria-label={`Open ${ch.name} details and history`}
-                onClick={() => setEditChore(ch)}
+                onClick={() => setEditChore(habitToFields(ch))}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    setEditChore(ch);
+                    setEditChore(habitToFields(ch));
                   }
                 }}
                 style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid #1A3542", cursor: "pointer" }}
@@ -618,7 +592,7 @@ export default function HabitBubbles() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 600 }}>{ch.name}</div>
                   <div style={{ fontSize: 12, color: "#7FA3AC" }}>
-                    {impLabel(ch.importance)} importance · effort {ch.difficulty} · every {ch.freqDays}d{ch.service ? " · 🧹 service" : ""}
+                    {impLabel(ch.importance)} importance · effort {ch.effort} · every {ch.periodDays}d
                   </div>
                   <div
                     style={{
@@ -637,7 +611,7 @@ export default function HabitBubbles() {
                   >
                     <span aria-hidden="true">{latest ? (resetEntry ? "↻" : "✓") : "○"}</span>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {lastDoneLabel(latest, now())}{latest ? ` · ${timeAgo(latest.ts)}` : ""}
+                      {lastDoneLabel(latest, now())}{latest ? ` · ${timeAgo(latest.at)}` : ""}
                     </span>
                   </div>
                 </div>
@@ -646,15 +620,12 @@ export default function HabitBubbles() {
             );
           })}
 
-          {view.chores.length > 0 && (
+          {view.habits.length > 0 && (
             <>
               <div style={{ marginTop: 26, fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Board maintenance</div>
               <div style={{ fontSize: 12, color: "#7FA3AC", margin: "4px 0 10px" }}>
-                Reset marks every chore as just done (no points) — handy if you were away without pausing. Clear removes all chores so you can build a fresh list.
+                Clear removes all chores so you can build a fresh list.
               </div>
-              <button disabled={simDays > 0} onClick={() => window.confirm("Reset all bubbles to fresh? Every chore is marked as just done — no points are awarded.") && resetBubbles()} style={{ ...btnStyle("#0F2530", "#5FE0BB"), width: "100%", marginBottom: 8, border: "1px solid #1E4152", opacity: simDays > 0 ? 0.45 : 1 }}>
-                🔄 Reset all bubbles to fresh
-              </button>
               <button disabled={simDays > 0} onClick={() => window.confirm("Clear all chores? This removes every chore and cannot be undone.") && clearChores()} style={{ ...btnStyle("#0F2530", "#FF8B7B"), width: "100%", border: "1px solid #1E4152", opacity: simDays > 0 ? 0.45 : 1 }}>
                 🗑 Clear all chores
               </button>
@@ -737,7 +708,7 @@ export default function HabitBubbles() {
         <Modal onClose={() => { setTapChore(null); setTapWhenDays(0); }}>
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700 }}>{tapChore.name}</div>
           <div style={{ fontSize: 13, color: "#7FA3AC", margin: "4px 0 16px" }}>
-            Last done {timeAgo(lastDone(tapChore, view.completions))} · worth {tapChore.difficulty} pts
+            Last done {timeAgo(habitHistoryFor(view.completions, tapChore.id)[0]?.at ?? tapChore.createdAt)} · worth {tapChore.effort} pts
           </div>
           <div style={{ fontSize: 12, color: "#7FA3AC", marginBottom: 7 }}>When was it done?</div>
           <div style={{ display: "flex", gap: 7, marginBottom: 18, flexWrap: "wrap" }}>
@@ -753,30 +724,6 @@ export default function HabitBubbles() {
           </div>
           <button onClick={() => logCompletion(tapChore)} style={{ ...btnStyle("#5FE0BB"), width: "100%" }}>
             Mark done
-          </button>
-        </Modal>
-      )}
-
-      {/* Cleaning service */}
-      {serviceOpen && (
-        <Modal onClose={() => setServiceOpen(false)}>
-          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700, marginBottom: 4 }}>Cleaning service visit</div>
-          <div style={{ fontSize: 13, color: "#7FA3AC", marginBottom: 14 }}>Check off what they handled. These bubbles reset without crediting your tally.</div>
-          <div style={{ maxHeight: 300, overflowY: "auto", marginBottom: 16 }}>
-            {view.chores.map((ch) => (
-              <label key={ch.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: "1px solid #1A3542", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={!!serviceSel[ch.id]}
-                  onChange={(e) => setServiceSel({ ...serviceSel, [ch.id]: e.target.checked })}
-                  style={{ width: 19, height: 19, accentColor: "#5FE0BB" }}
-                />
-                <span style={{ fontSize: 15 }}>{ch.name}</span>
-              </label>
-            ))}
-          </div>
-          <button onClick={confirmService} style={{ ...btnStyle("#5FE0BB"), width: "100%" }}>
-            Log service visit ({Object.values(serviceSel).filter(Boolean).length} chores)
           </button>
         </Modal>
       )}
@@ -812,15 +759,14 @@ export default function HabitBubbles() {
               ) : (
                 <div style={{ maxHeight: 220, overflowY: "auto", background: "#102733", border: "1px solid #1A3B49", borderRadius: 12, padding: "0 12px" }}>
                   {editChoreHistory.map((entry) => {
-                    const resetEntry = entry.by === "service" || entry.by === "reset";
                     return (
                       <div key={entry.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid #1A3542" }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ color: "#7FA3AC", fontSize: 11.5, marginTop: 1 }}>
-                            {historyDate(entry.ts)} · {timeAgo(entry.ts)}
+                            {historyDate(entry.at)} · {timeAgo(entry.at)}
                           </div>
                         </div>
-                        <div style={{ color: resetEntry ? "#9FB6BC" : "#5FE0BB", fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" }}>
+                        <div style={{ color: "#5FE0BB", fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" }}>
                           {completionImpact(editChore || {}, view.completions, entry)}
                         </div>
                       </div>
