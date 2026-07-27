@@ -13,14 +13,14 @@ export const btnStyle = (bg, color = "#0C1B26") => ({
   WebkitTapHighlightColor: "transparent",
 });
 
-export function Stepper({ label, value, min, max, onChange, format }) {
+export function Stepper({ label, value, min, max, step = 1, onChange, format }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0" }}>
       <span style={{ color: "#B9D2D8", fontSize: 14 }}>{label}</span>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button onClick={() => onChange(Math.max(min, value - 1))} style={{ ...btnStyle("#0F2530", "#5FE0BB"), padding: "6px 14px", fontSize: 18 }}>-</button>
+        <button onClick={() => onChange(Math.max(min, value - step))} style={{ ...btnStyle("#0F2530", "#5FE0BB"), padding: "6px 14px", fontSize: 18 }}>-</button>
         <span style={{ color: "#E8F3F4", fontSize: 15, minWidth: 56, textAlign: "center", fontWeight: 600 }}>{format ? format(value) : value}</span>
-        <button onClick={() => onChange(Math.min(max, value + 1))} style={{ ...btnStyle("#0F2530", "#5FE0BB"), padding: "6px 14px", fontSize: 18 }}>+</button>
+        <button onClick={() => onChange(Math.min(max, value + step))} style={{ ...btnStyle("#0F2530", "#5FE0BB"), padding: "6px 14px", fontSize: 18 }}>+</button>
       </div>
     </div>
   );

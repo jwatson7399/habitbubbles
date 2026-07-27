@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   getRecord,
   saveRecord,
@@ -7,47 +7,27 @@ import {
   removePendingOperations,
   INTRO_KEY,
 } from "./storage.js";
-// Only effortZoneThresholds survives from logModel here, for the Chores tab's
-// (Task 8 territory) "green zone starts at" points stepper — the Log tab no
-// longer touches points at all.
-import { effortZoneThresholds } from "./logModel.js";
-import {
-  habitHistoryFor,
-  completionImpact,
-  lastDoneLabel,
-} from "./model/habitHistory.js";
 import { completionIds, shouldPulseRhythm } from "./model/rhythmPulse.js";
 import { rhythmScore, rhythmZone } from "./model/rhythmModel.js";
-import { DAY, uid, defaultData, normalizeData, applyOperation, STARTER_HABITS } from "./model/habitData.js";
+import { DAY, uid, defaultData, normalizeData, applyOperation } from "./model/habitData.js";
 import { normalizeHabit, canLogCompletion } from "./model/habitSchema.js";
-import { faceFor, timeAgo, historyDate } from "./utils/format.js";
+import { faceFor } from "./utils/format.js";
 import { realNow, now, setTimeOffset } from "./utils/clock.js";
 import { Modal } from "./components/Modal.jsx";
-import { btnStyle, Stepper, ScaleSelector } from "./components/controls.jsx";
-import { ChoreFields } from "./components/ChoreFields.jsx";
+import { btnStyle, Stepper } from "./components/controls.jsx";
 import RhythmBar from "./components/RhythmBar.jsx";
 import { OwnerNameEditor } from "./components/OwnerNameEditor.jsx";
-import { bubbleHue } from "./components/BubbleField.jsx";
 import BubblesScreen from "./screens/BubblesScreen.jsx";
 import LogScreen from "./screens/LogScreen.jsx";
+import HabitsScreen from "./screens/HabitsScreen.jsx";
 
 // HabitBubbles: a personal habit ecosystem.
 // Bubbles swell as opportunities come due. Tap to complete, drag to rearrange.
-
-
-// Bridges ChoreFields' vocabulary (difficulty/freqDays) to the habit schema's
-// (effort/periodDays) without touching ChoreFields itself — that rewrite is
-// Task 8's job. Spreading the source first means every other habit field
-// (id, createdAt, anchorAt, periodDays, effort, quota, archived) survives the
-// round trip untouched; only the two aliased keys are added or overridden.
-const habitToFields = (h) => ({ ...h, difficulty: h.effort, freqDays: h.periodDays });
-const fieldsToHabit = (f) => ({ ...f, effort: f.difficulty, periodDays: f.freqDays });
 
 // ---------- Main app ----------
 export default function HabitBubbles() {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("bubbles");
-  const [editChore, setEditChore] = useState(null);
   const [toast, setToast] = useState(null);
   const [popId, setPopId] = useState(null);
   const [syncState, setSyncState] = useState("");
@@ -72,15 +52,6 @@ export default function HabitBubbles() {
   // apply to a local sandbox copy that is never synced and is discarded on
   // returning to today. This keeps simulated play out of saved data.
   const view = simDays > 0 && simData ? simData : data;
-
-  // Only feeds the Chores tab's (Task 8 territory) points-based "green zone
-  // starts at" stepper — the chore-era weeklyGoal scale, unrelated to rhythm.
-  const settingsThresholds = useMemo(() => {
-    if (!view) return null;
-    const goal = Number(view.settings?.weeklyGoal) || 14;
-    const { greenMin } = effortZoneThresholds(goal, view.settings?.greenStart);
-    return { goal, greenMin };
-  }, [view]);
 
   const showToast = useCallback((msg, undoFn = null) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -130,7 +101,7 @@ export default function HabitBubbles() {
       setSyncState("");
       if (pending.length > 0) flushQueue();
     } catch (error) {
-      setSyncState(error.message || "Unable to load your chores.");
+      setSyncState(error.message || "Unable to load your habits.");
       if (!dataRef.current) setData(defaultData());
     }
   }, [flushQueue]);
@@ -221,24 +192,21 @@ export default function HabitBubbles() {
     return true;
   };
 
-  const saveChore = (fields) => {
-    const habit = normalizeHabit(fieldsToHabit(fields), now());
-    if (commit({ type: "habit:upsert", habit })) setEditChore(null);
+  const saveHabit = (habit) => {
+    commit({ type: "habit:upsert", habit: normalizeHabit(habit, now()) });
   };
 
-  const deleteChore = (id) => {
-    if (commit({ type: "habit:delete", habitId: id })) setEditChore(null);
+  const deleteHabit = (id) => {
+    commit({ type: "habit:delete", habitId: id });
   };
 
-  const addStarters = () => {
-    const habits = STARTER_HABITS.map((h) => normalizeHabit(h, now()));
+  const addManyHabits = (habits) => {
     commit({ type: "habit:add-many", habits });
   };
 
-  const clearChores = () => {
+  const clearHabits = () => {
     commit({ type: "habit:clear" });
-    setEditChore(null);
-    showToast("All chores cleared");
+    showToast("All habits cleared");
   };
 
   // Pulse for every newly observed completion, including a gain too small to
@@ -266,14 +234,13 @@ export default function HabitBubbles() {
   if (!data) {
     return (
       <div style={{ height: "100dvh", display: "flex", flexDirection: "column", gap: 10, alignItems: "center", justifyContent: "center", textAlign: "center", padding: 28, background: "#0C1B26", color: "#7FA3AC", fontFamily: "'Nunito Sans', sans-serif" }}>
-        <div>Loading your chores...</div>
+        <div>Loading your habits...</div>
         {syncState && <div style={{ color: "#FF8B7B", fontSize: 13, maxWidth: 380 }}>{syncState}</div>}
       </div>
     );
   }
 
   const { settings } = view;
-  const { goal, greenMin } = settingsThresholds;
   // Rhythm replaces the old chore-era healthScore. `rhythm` is null while
   // every habit is still warming up (its first period hasn't elapsed) — that
   // must render as a distinct "warming up" state, not a fabricated 0%, or a
@@ -283,12 +250,6 @@ export default function HabitBubbles() {
   const rhythmZoneInfo = rhythm == null ? null : rhythmZone(rhythm, settings.greenStart);
   const healthPct = rhythm == null ? null : Math.round(rhythm * 100);
   const healthColor = !rhythmZoneInfo ? "#7FA3AC" : rhythmZoneInfo.key === "green" ? "#5FE0BB" : rhythmZoneInfo.key === "amber" ? "#FFC65E" : "#FF8B7B";
-  const choreHistories = new Map(
-    view.habits.map((habit) => [habit.id, habitHistoryFor(view.completions, habit.id)])
-  );
-  const editChoreHistory = editChore?.id ? choreHistories.get(editChore.id) || [] : [];
-
-  const impLabel = (v) => ["", "Low", "Mild", "Medium", "High", "Critical"][v];
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "radial-gradient(120% 100% at 50% 0%, #123240 0%, #0C1B26 70%)", fontFamily: "'Nunito Sans', sans-serif", color: "#E8F3F4", overflow: "hidden" }}>
@@ -308,7 +269,7 @@ export default function HabitBubbles() {
       {/* Header */}
       <div style={{ padding: "calc(env(safe-area-inset-top) + 14px) 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 22, fontWeight: 700, letterSpacing: 0.3 }}>
-          Chore<span style={{ color: "#5FE0BB" }}>Bubbles</span> <span style={{ color: "#9FD4EA", fontSize: 13 }}>Solo</span>
+          Habit<span style={{ color: "#5FE0BB" }}>Bubbles</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ fontSize: 12, color: simDays > 0 ? "#FFC65E" : "#7FA3AC", fontWeight: simDays > 0 ? 700 : 400 }}>
@@ -379,89 +340,47 @@ export default function HabitBubbles() {
       )}
 
       {tab === "chores" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
-          {simDays > 0 && <div style={{ color: "#FFC65E", fontSize: 13, textAlign: "center", marginBottom: 10 }}>Preview mode is read-only.</div>}
-          <button disabled={simDays > 0} onClick={() => setEditChore({ name: "", importance: 3, difficulty: 2, freqDays: 7, service: false })} style={{ ...btnStyle("#5FE0BB"), width: "100%", marginBottom: 10, opacity: simDays > 0 ? 0.45 : 1 }}>
-            + Add chore
-          </button>
-          {view.habits.length === 0 && (
-            <button disabled={simDays > 0} onClick={addStarters} style={{ ...btnStyle("#0F2530", "#B9D2D8"), width: "100%", marginBottom: 10, border: "1px solid #1E4152", opacity: simDays > 0 ? 0.45 : 1 }}>
-              Load a starter list of common chores
-            </button>
-          )}
-          {view.habits.map((ch, i) => {
-            const latest = choreHistories.get(ch.id)?.[0];
-            const resetEntry = false;
-            return (
-              <div
-                key={ch.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`Open ${ch.name} details and history`}
-                onClick={() => setEditChore(habitToFields(ch))}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setEditChore(habitToFields(ch));
-                  }
-                }}
-                style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid #1A3542", cursor: "pointer" }}
-              >
-                <div style={{ width: 14, height: 14, borderRadius: "50%", background: bubbleHue(i), flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>{ch.name}</div>
-                  <div style={{ fontSize: 12, color: "#7FA3AC" }}>
-                    {impLabel(ch.importance)} importance · effort {ch.effort} · every {ch.periodDays}d
-                  </div>
-                  <div
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 5,
-                      maxWidth: "100%",
-                      marginTop: 6,
-                      padding: "4px 8px",
-                      borderRadius: 8,
-                      background: latest ? (resetEntry ? "#23313A" : "#14372F") : "#142A35",
-                      color: latest ? (resetEntry ? "#9FB6BC" : "#8EDCC5") : "#7FA3AC",
-                      fontSize: 11.5,
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    <span aria-hidden="true">{latest ? (resetEntry ? "↻" : "✓") : "○"}</span>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {lastDoneLabel(latest, now())}{latest ? ` · ${timeAgo(latest.at)}` : ""}
-                    </span>
-                  </div>
+        <>
+          <HabitsScreen
+            habits={view.habits}
+            completions={view.completions}
+            simDays={simDays}
+            onSaveHabit={saveHabit}
+            onDeleteHabit={deleteHabit}
+            onAddManyHabits={addManyHabits}
+          />
+
+          <div style={{ padding: "0 20px 20px" }}>
+            <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Solo settings</div>
+            <Stepper
+              label="Green zone starts at"
+              value={Math.round(settings.greenStart * 100)}
+              min={40}
+              max={100}
+              step={5}
+              onChange={(v) => commit({ type: "settings:patch", patch: { greenStart: v / 100 } })}
+              format={(v) => `${v}%`}
+            />
+            <div style={{ color: "#7FA3AC", fontSize: 11.5, margin: "-4px 0 8px" }}>
+              Land in the green once your rhythm reaches this percentage.
+            </div>
+            <OwnerNameEditor settings={settings} onSave={(ownerName) => commit({ type: "settings:patch", patch: { ownerName } })} />
+            {view.habits.length > 0 && (
+              <>
+                <div style={{ marginTop: 26, fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Board maintenance</div>
+                <div style={{ fontSize: 12, color: "#7FA3AC", margin: "4px 0 10px" }}>
+                  Clear removes all habits so you can build a fresh list.
                 </div>
-                <div style={{ color: "#7FA3AC" }}>›</div>
-              </div>
-            );
-          })}
-
-          {view.habits.length > 0 && (
-            <>
-              <div style={{ marginTop: 26, fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Board maintenance</div>
-              <div style={{ fontSize: 12, color: "#7FA3AC", margin: "4px 0 10px" }}>
-                Clear removes all chores so you can build a fresh list.
-              </div>
-              <button disabled={simDays > 0} onClick={() => window.confirm("Clear all chores? This removes every chore and cannot be undone.") && clearChores()} style={{ ...btnStyle("#0F2530", "#FF8B7B"), width: "100%", border: "1px solid #1E4152", opacity: simDays > 0 ? 0.45 : 1 }}>
-                🗑 Clear all chores
-              </button>
-            </>
-          )}
-
-          <div style={{ marginTop: 26, fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 600 }}>Solo settings</div>
-          <Stepper label="Effort scale (full bar)" value={settings.weeklyGoal} min={4} max={40} onChange={(v) => commit({ type: "settings:patch", patch: { weeklyGoal: v, greenStart: Math.min(greenMin, v) } })} />
-          <Stepper label="Green zone starts at" value={greenMin} min={2} max={settings.weeklyGoal} onChange={(v) => commit({ type: "settings:patch", patch: { greenStart: v } })} format={(v) => `${v} pts`} />
-          <div style={{ color: "#7FA3AC", fontSize: 11.5, margin: "-4px 0 8px" }}>
-            Land in the green by reaching {greenMin} of {settings.weeklyGoal} points. The full bar is a reference, not a cutoff.
+                <button disabled={simDays > 0} onClick={() => window.confirm("Clear all habits? This removes every habit and cannot be undone.") && clearHabits()} style={{ ...btnStyle("#0F2530", "#FF8B7B"), width: "100%", border: "1px solid #1E4152", opacity: simDays > 0 ? 0.45 : 1 }}>
+                  🗑 Clear all habits
+                </button>
+              </>
+            )}
+            <button onClick={() => window.confirm("Clear the activity log? This cannot be undone.") && resetActivity()} style={{ ...btnStyle("#0F2530", "#FF8B7B"), width: "100%", marginTop: 8, border: "1px solid #1E4152", fontSize: 13 }}>
+              Clear activity log
+            </button>
           </div>
-          <OwnerNameEditor settings={settings} onSave={(ownerName) => commit({ type: "settings:patch", patch: { ownerName } })} />
-          <button onClick={() => window.confirm("Clear the activity log? This cannot be undone.") && resetActivity()} style={{ ...btnStyle("#0F2530", "#FF8B7B"), width: "100%", marginTop: 8, border: "1px solid #1E4152", fontSize: 13 }}>
-            Clear activity log
-          </button>
-        </div>
+        </>
       )}
 
       {/* Tab bar */}
@@ -469,7 +388,7 @@ export default function HabitBubbles() {
         {[
           { id: "bubbles", label: "Bubbles", icon: "🫧" },
           { id: "log", label: "The Log", icon: "📊" },
-          { id: "chores", label: "Chores", icon: "📝" },
+          { id: "chores", label: "Habits", icon: "📝" },
         ].map((t) => (
           <button
             key={t.id}
@@ -514,80 +433,11 @@ export default function HabitBubbles() {
         <Modal onClose={dismissIntro}>
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 21, fontWeight: 700, marginBottom: 14 }}>How HabitBubbles works 🫧</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, color: "#D7E7EA", fontSize: 14, lineHeight: 1.45, marginBottom: 20 }}>
-            <div><strong style={{ color: "#5FE0BB" }}>1.</strong> Bubbles grow as chores become due.</div>
-            <div><strong style={{ color: "#5FE0BB" }}>2.</strong> Tap a bubble when a chore is done.</div>
+            <div><strong style={{ color: "#5FE0BB" }}>1.</strong> Bubbles grow as habits become due.</div>
+            <div><strong style={{ color: "#5FE0BB" }}>2.</strong> Tap a bubble when a habit is done.</div>
             <div><strong style={{ color: "#5FE0BB" }}>3.</strong> What you do stays in your tally for seven active days. Keep your effort in the green.</div>
           </div>
           <button onClick={dismissIntro} style={{ ...btnStyle("#5FE0BB"), width: "100%" }}>Got it</button>
-        </Modal>
-      )}
-
-
-      {/* Edit / add chore */}
-      {editChore && (
-        <Modal onClose={() => setEditChore(null)}>
-          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700, marginBottom: 14 }}>
-            {editChore.id ? "Edit chore" : "New chore"}
-          </div>
-          <ChoreFields value={editChore} onChange={(patch) => setEditChore({ ...editChore, ...patch })} />
-          <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={!!editChore.service}
-              onChange={(e) => setEditChore({ ...editChore, service: e.target.checked })}
-              style={{ width: 19, height: 19, accentColor: "#5FE0BB" }}
-            />
-            <span style={{ fontSize: 14, color: "#B9D2D8" }}>Cleaning service usually handles this</span>
-          </label>
-          {editChore.id && (
-            <section style={{ marginTop: 10, paddingTop: 14, borderTop: "1px solid #244653" }}>
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
-                <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 16, fontWeight: 700 }}>Chore history</div>
-                <div style={{ color: "#7FA3AC", fontSize: 11.5 }}>
-                  {editChoreHistory.length} entr{editChoreHistory.length === 1 ? "y" : "ies"}
-                </div>
-              </div>
-              {editChoreHistory.length === 0 ? (
-                <div style={{ background: "#102733", border: "1px solid #1A3B49", borderRadius: 12, padding: "12px 14px", color: "#7FA3AC", fontSize: 13 }}>
-                  No completions logged yet.
-                </div>
-              ) : (
-                <div style={{ maxHeight: 220, overflowY: "auto", background: "#102733", border: "1px solid #1A3B49", borderRadius: 12, padding: "0 12px" }}>
-                  {editChoreHistory.map((entry) => {
-                    return (
-                      <div key={entry.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 0", borderBottom: "1px solid #1A3542" }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ color: "#7FA3AC", fontSize: 11.5, marginTop: 1 }}>
-                            {historyDate(entry.at)} · {timeAgo(entry.at)}
-                          </div>
-                        </div>
-                        <div style={{ color: "#5FE0BB", fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" }}>
-                          {completionImpact(editChore || {}, view.completions, entry)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          )}
-          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-            {editChore.id && (
-              <button onClick={() => deleteChore(editChore.id)} style={{ ...btnStyle("#0F2530", "#FF8B7B"), flex: 1, border: "1px solid #1E4152" }}>Delete</button>
-            )}
-            <button
-              onClick={() => {
-                if (editChore.name.trim()) saveChore(editChore);
-              }}
-              style={{
-                ...btnStyle("#5FE0BB"),
-                flex: 2,
-                opacity: editChore.name.trim() ? 1 : 0.5,
-              }}
-            >
-              Save chore
-            </button>
-          </div>
         </Modal>
       )}
     </div>
