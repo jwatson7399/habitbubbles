@@ -1,39 +1,44 @@
-import { advanceTwoStepChore } from "../twoStepChore.js";
-
 export const uid = () => Math.random().toString(36).slice(2, 10);
 export const DAY = 86400000;
 
+// The owner's real habits, shipped as first-run defaults. Effort is a static
+// time-cost used only to rank suggestions; it is not duration logging.
+export const STARTER_HABITS = [
+  { name: "Meditate", importance: 4, effort: 1, quota: 1, periodDays: 1 },
+  { name: "Read book A", importance: 3, effort: 2, quota: 1, periodDays: 1 },
+  { name: "Read book B", importance: 2, effort: 2, quota: 1, periodDays: 1 },
+  { name: "Journal", importance: 3, effort: 2, quota: 1, periodDays: 1 },
+  { name: "Lift weights", importance: 4, effort: 4, quota: 1, periodDays: 2 },
+  { name: "Brazilian jiujitsu", importance: 5, effort: 5, quota: 2, periodDays: 7 },
+  { name: "Cardio", importance: 4, effort: 3, quota: 2, periodDays: 7 },
+];
+
 export const defaultData = () => ({
-  chores: [],
+  habits: [],
   completions: [],
-  pauses: [],
-  settings: { mode: "solo", ownerName: "You", weeklyGoal: 14 },
+  settings: { ownerName: "You", rhythmWindowDays: 14, greenStart: 0.8 },
   updatedAt: 0,
 });
 
 export function normalizeData(value) {
   const defaults = defaultData();
   const source = value && typeof value === "object" ? value : {};
+  const { chores, pauses, ...rest } = source;
   return {
     ...defaults,
-    ...source,
-    chores: Array.isArray(source.chores) ? source.chores : [],
+    ...rest,
+    habits: Array.isArray(source.habits) ? source.habits : [],
     completions: Array.isArray(source.completions) ? source.completions : [],
-    pauses: Array.isArray(source.pauses) ? source.pauses : [],
     settings: {
       ...defaults.settings,
       ...(source.settings || {}),
-      mode: "solo",
-      ownerName:
-        source.settings?.ownerName ||
-        source.settings?.nameA ||
-        defaults.settings.ownerName,
+      ownerName: source.settings?.ownerName || defaults.settings.ownerName,
     },
   };
 }
 
-// Operations are intentionally small and replayable so offline changes can be
-// applied safely to the newest saved state.
+// Operations are small and replayable so queued changes can be applied safely
+// to the newest saved state.
 export function applyOperation(value, op) {
   const data = normalizeData(value);
   let next = data;
@@ -46,23 +51,10 @@ export function applyOperation(value, op) {
     }
     case "completion:add-many": {
       const known = new Set(data.completions.map((item) => item.id));
-      next = { ...data, completions: [...data.completions, ...(op.completions || []).filter((item) => !known.has(item.id))] };
-      break;
-    }
-    case "completion:add-and-advance": {
-      if (data.completions.some((item) => item.id === op.completion.id)) break;
-      const chores = data.chores.map((item) =>
-        item.id === op.choreId ? advanceTwoStepChore(item) : item
-      );
-      next = { ...data, chores, completions: [...data.completions, op.completion] };
-      break;
-    }
-    case "completion:remove-and-restore": {
-      const ids = new Set(op.ids || []);
-      const chores = data.chores.map((item) =>
-        item.id === op.chore?.id ? op.chore : item
-      );
-      next = { ...data, chores, completions: data.completions.filter((item) => !ids.has(item.id)) };
+      next = {
+        ...data,
+        completions: [...data.completions, ...(op.completions || []).filter((item) => !known.has(item.id))],
+      };
       break;
     }
     case "completion:remove": {
@@ -70,37 +62,31 @@ export function applyOperation(value, op) {
       next = { ...data, completions: data.completions.filter((item) => !ids.has(item.id)) };
       break;
     }
-    case "chore:upsert": {
-      const exists = data.chores.some((item) => item.id === op.chore.id);
-      const chores = exists
-        ? data.chores.map((item) => (item.id === op.chore.id ? op.chore : item))
-        : [...data.chores, op.chore];
-      next = { ...data, chores };
+    case "habit:upsert": {
+      const exists = data.habits.some((item) => item.id === op.habit.id);
+      const habits = exists
+        ? data.habits.map((item) => (item.id === op.habit.id ? op.habit : item))
+        : [...data.habits, op.habit];
+      next = { ...data, habits };
       break;
     }
-    case "chore:add-many": {
-      const known = new Set(data.chores.map((item) => item.id));
-      next = { ...data, chores: [...data.chores, ...(op.chores || []).filter((item) => !known.has(item.id))] };
+    case "habit:add-many": {
+      const known = new Set(data.habits.map((item) => item.id));
+      next = { ...data, habits: [...data.habits, ...(op.habits || []).filter((item) => !known.has(item.id))] };
       break;
     }
-    case "chore:delete":
-      next = { ...data, chores: data.chores.filter((item) => item.id !== op.choreId) };
+    // Deleting a habit takes its completions with it — orphaned completions
+    // would otherwise keep counting toward nothing and clutter history.
+    case "habit:delete":
+      next = {
+        ...data,
+        habits: data.habits.filter((item) => item.id !== op.habitId),
+        completions: data.completions.filter((item) => item.habitId !== op.habitId),
+      };
       break;
-    case "chore:clear":
-      next = { ...data, chores: [] };
+    case "habit:clear":
+      next = { ...data, habits: [], completions: [] };
       break;
-    case "pause:set": {
-      let pauses = [...data.pauses];
-      const active = pauses.filter((item) => item.scope === op.scope && item.end == null);
-      if (op.active && active.length === 0) {
-        pauses.push({ id: op.pauseId, scope: op.scope, start: op.at, end: null });
-      } else if (!op.active && active.length > 0) {
-        const activeIds = new Set(active.map((item) => item.id));
-        pauses = pauses.map((item) => (activeIds.has(item.id) ? { ...item, end: op.at } : item));
-      }
-      next = { ...data, pauses };
-      break;
-    }
     case "settings:patch":
       next = { ...data, settings: { ...data.settings, ...op.patch } };
       break;

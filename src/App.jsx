@@ -28,14 +28,6 @@ import {
   lastDoneLabel,
 } from "./choreHistory.js";
 import { completionIds, shouldPulseRhythm } from "./model/rhythmPulse.js";
-import {
-  advanceTwoStepChore,
-  disableTwoStepChore,
-  enableTwoStepChore,
-  isTwoStepChore,
-  materializeTwoStepChore,
-  updateTwoStep,
-} from "./twoStepChore.js";
 import { DAY, uid, defaultData, normalizeData, applyOperation } from "./model/habitData.js";
 import { activePause, lastDone, urgencyOf, healthScore } from "./model/choreMath.js";
 import { faceFor, timeAgo, historyDate } from "./utils/format.js";
@@ -320,7 +312,6 @@ export default function HabitBubbles() {
   const logCompletion = (chore) => {
     // "when" lets you backdate a chore you forgot to log (e.g. done yesterday).
     const ts = now() - tapWhenDays * DAY;
-    const twoStep = isTwoStepChore(chore);
     const comp = {
       id: uid(),
       choreId: chore.id,
@@ -328,23 +319,16 @@ export default function HabitBubbles() {
       difficulty: chore.difficulty,
       by: "owner",
       ts,
-      ...(twoStep ? { twoStepIndex: chore.twoStep.active } : {}),
     };
-    const operation = twoStep
-      ? { type: "completion:add-and-advance", completion: comp, choreId: chore.id }
-      : { type: "completion:add", completion: comp };
-    if (!commit(operation)) return;
+    if (!commit({ type: "completion:add", completion: comp })) return;
     setTapChore(null);
     setTapWhenDays(0);
     setPopId(chore.id);
     if (popTimer.current) clearTimeout(popTimer.current);
     popTimer.current = setTimeout(() => setPopId(null), 1000);
     const when = tapWhenDays === 0 ? "" : tapWhenDays === 1 ? " (yesterday)" : ` (${tapWhenDays}d ago)`;
-    const nextStep = twoStep ? advanceTwoStepChore(chore).name : "";
-    showToast(`${chore.name} done${when}${nextStep ? ` · ${nextStep} is up next` : ""}`, () => {
-      commit(twoStep
-        ? { type: "completion:remove-and-restore", ids: [comp.id], chore }
-        : { type: "completion:remove", ids: [comp.id] });
+    showToast(`${chore.name} done${when}`, () => {
+      commit({ type: "completion:remove", ids: [comp.id] });
       setToast(null);
     });
   };
@@ -370,8 +354,7 @@ export default function HabitBubbles() {
   };
 
   const saveChore = (ch) => {
-    const normalized = isTwoStepChore(ch) ? materializeTwoStepChore(ch) : ch;
-    const chore = normalized.id ? normalized : { ...normalized, id: uid(), createdAt: realNow() };
+    const chore = ch.id ? ch : { ...ch, id: uid(), createdAt: realNow() };
     if (commit({ type: "chore:upsert", chore })) setEditChore(null);
   };
 
@@ -958,28 +941,7 @@ export default function HabitBubbles() {
           <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700, marginBottom: 14 }}>
             {editChore.id ? "Edit chore" : "New chore"}
           </div>
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0 12px", cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={isTwoStepChore(editChore)}
-              onChange={(event) => setEditChore(event.target.checked ? enableTwoStepChore(editChore) : disableTwoStepChore(editChore))}
-              style={{ width: 19, height: 19, marginTop: 1, accentColor: "#5FE0BB" }}
-            />
-            <span>
-              <span style={{ display: "block", fontSize: 14, color: "#E8F3F4", fontWeight: 700 }}>Two-step chore</span>
-              <span style={{ display: "block", fontSize: 11.5, color: "#7FA3AC", lineHeight: 1.35, marginTop: 2 }}>
-                Completing either step swaps its bubble to the other. Only one step is visible at a time.
-              </span>
-            </span>
-          </label>
-          {isTwoStepChore(editChore) ? (
-            <>
-              <ChoreFields title={`Step 1${editChore.twoStep.active === 0 ? " · visible now" : ""}`} value={editChore.twoStep.steps[0]} onChange={(patch) => setEditChore(updateTwoStep(editChore, 0, patch))} />
-              <ChoreFields title={`Step 2${editChore.twoStep.active === 1 ? " · visible now" : ""}`} value={editChore.twoStep.steps[1]} onChange={(patch) => setEditChore(updateTwoStep(editChore, 1, patch))} />
-            </>
-          ) : (
-            <ChoreFields value={editChore} onChange={(patch) => setEditChore({ ...editChore, ...patch })} />
-          )}
+          <ChoreFields value={editChore} onChange={(patch) => setEditChore({ ...editChore, ...patch })} />
           <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", cursor: "pointer" }}>
             <input
               type="checkbox"
@@ -1031,17 +993,12 @@ export default function HabitBubbles() {
             )}
             <button
               onClick={() => {
-                const namesReady = isTwoStepChore(editChore)
-                  ? editChore.twoStep.steps.every((step) => step.name.trim())
-                  : editChore.name.trim();
-                if (namesReady) saveChore(editChore);
+                if (editChore.name.trim()) saveChore(editChore);
               }}
               style={{
                 ...btnStyle("#5FE0BB"),
                 flex: 2,
-                opacity: (isTwoStepChore(editChore)
-                  ? editChore.twoStep.steps.every((step) => step.name.trim())
-                  : editChore.name.trim()) ? 1 : 0.5,
+                opacity: editChore.name.trim() ? 1 : 0.5,
               }}
             >
               Save chore
