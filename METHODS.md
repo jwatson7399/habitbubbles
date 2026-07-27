@@ -1,9 +1,18 @@
 # HabitBubbles — Design Specification
 
-**Status:** implemented. Repo: `~/Claude Code/habitbubbles`.
-**Date:** 2026-07-26 (rev. 2 — banking, sizing floors, archive semantics)
+**Status:** **FINAL — v1.0.** This is the canonical HabitBubbles implementation.
+**Repo:** `~/Claude Code/habitbubbles` (local only; no remote, not published)
+**Date:** 2026-07-27 (rev. 3 — attainment window origin, accessibility)
 **Fork parent:** `chorebubbles-solo` (`f2ff135`)
-**Authors:** designed with Julian; reviewed against Codex critique across two rounds
+**Authors:** designed with Julian; reviewed against Codex critique across four rounds
+
+`~/Claude Code/habitbubbles-codex` is a **parallel implementation, archived for
+reference only.** It was built from rev. 2 of this document and is not maintained.
+Two of its findings were adopted here: the attainment window origin (§3.3) and
+keyboard/dialog accessibility. Its rolling credit cap was deliberately **not** adopted —
+see §3.3.2. Before either build is ever deployed alongside the other, the reference copy
+must be given distinct storage keys and a distinct Workbox `cacheId`; both currently use
+`habitbubbles:data:habitbubbles-local` and `cacheId: "habitbubbles"`.
 
 This document is the design record for HabitBubbles, a third app in the ChoreBubbles
 family. It specifies the product model, the mathematics, the architecture, and the
