@@ -28,9 +28,10 @@ import { realNow, now, setTimeOffset } from "./utils/clock.js";
 import { Modal } from "./components/Modal.jsx";
 import { btnStyle, Stepper, ScaleSelector } from "./components/controls.jsx";
 import { ChoreFields } from "./components/ChoreFields.jsx";
-import { CompactBar, ProgressRow } from "./components/bars.jsx";
+import { ProgressRow } from "./components/bars.jsx";
 import { OwnerNameEditor } from "./components/OwnerNameEditor.jsx";
-import BubbleField, { bubbleHue } from "./components/BubbleField.jsx";
+import { bubbleHue } from "./components/BubbleField.jsx";
+import BubblesScreen from "./screens/BubblesScreen.jsx";
 
 // HabitBubbles: a personal habit ecosystem.
 // Bubbles swell as opportunities come due. Tap to complete, drag to rearrange.
@@ -48,8 +49,6 @@ const fieldsToHabit = (f) => ({ ...f, effort: f.difficulty, periodDays: f.freqDa
 export default function HabitBubbles() {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("bubbles");
-  const [tapChore, setTapChore] = useState(null);
-  const [tapWhenDays, setTapWhenDays] = useState(0);
   const [editChore, setEditChore] = useState(null);
   const [toast, setToast] = useState(null);
   const [popId, setPopId] = useState(null);
@@ -59,7 +58,6 @@ export default function HabitBubbles() {
   const [simOpen, setSimOpen] = useState(false);
   const [introOpen, setIntroOpen] = useState(false);
   const [suggestionSeed, setSuggestionSeed] = useState(0);
-  const [bubbleSuggestionsVisible, setBubbleSuggestionsVisible] = useState(false);
   const [healthPulse, setHealthPulse] = useState(0);
   const prevHealthRef = useRef(null);
   const knownCreditedCompletionIdsRef = useRef(null);
@@ -225,25 +223,25 @@ export default function HabitBubbles() {
     });
   };
 
-  const logCompletion = (habit) => {
-    // "when" lets you backdate a habit you forgot to log (e.g. done yesterday).
-    const at = now() - tapWhenDays * DAY;
+  // "whenDays" lets you backdate a habit you forgot to log (e.g. done yesterday).
+  // Returns true/false so callers (the completion sheet) know whether to close.
+  const logCompletion = (habit, whenDays = 0) => {
+    const at = now() - whenDays * DAY;
     if (!canLogCompletion(habit, at)) {
       showToast("That's before this habit started tracking.");
-      return;
+      return false;
     }
     const comp = { id: uid(), habitId: habit.id, habitName: habit.name, at };
-    if (!commit({ type: "completion:add", completion: comp })) return;
-    setTapChore(null);
-    setTapWhenDays(0);
+    if (!commit({ type: "completion:add", completion: comp })) return false;
     setPopId(habit.id);
     if (popTimer.current) clearTimeout(popTimer.current);
     popTimer.current = setTimeout(() => setPopId(null), 1000);
-    const when = tapWhenDays === 0 ? "" : tapWhenDays === 1 ? " (yesterday)" : ` (${tapWhenDays}d ago)`;
+    const when = whenDays === 0 ? "" : whenDays === 1 ? " (yesterday)" : ` (${whenDays}d ago)`;
     showToast(`${habit.name} done${when}`, () => {
       commit({ type: "completion:remove", ids: [comp.id] });
       setToast(null);
     });
+    return true;
   };
 
   const saveChore = (fields) => {
@@ -322,16 +320,13 @@ export default function HabitBubbles() {
     view.habits.map((habit) => [habit.id, habitHistoryFor(view.completions, habit.id)])
   );
   const editChoreHistory = editChore?.id ? choreHistories.get(editChore.id) || [] : [];
-  const suggestedBubbleIds = new Set(
-    bubbleSuggestionsVisible && suggestion ? suggestion.chores.map((chore) => chore.id) : []
-  );
+  // TRANSITIONAL: still drives the Log tab's chore-era "Shuffle ideas" button
+  // (suggestCombo). Task 7 replaces that panel; not touched here.
   const canShuffleSuggestions = !!suggestion && view.habits.length > 0;
   const shuffleSuggestions = () => {
     if (!canShuffleSuggestions) return;
-    setBubbleSuggestionsVisible(true);
     setSuggestionSeed((seed) => seed + 1);
   };
-  const hideBubbleSuggestions = () => setBubbleSuggestionsVisible(false);
   const previousRecap = !previousHasActivity
     ? ""
     : previousPoints >= greenMin
@@ -432,46 +427,14 @@ export default function HabitBubbles() {
 
       {/* Body */}
       {tab === "bubbles" && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-          {view.habits.length > 0 && (
-            <div style={{ padding: "2px 20px 8px" }}>
-              <CompactBar name={settings.ownerName} points={points} goal={goal} greenStart={settings.greenStart} />
-            </div>
-          )}
-          {simDays > 0 && (
-            <div style={{ margin: "4px 20px 0", padding: "9px 14px", background: "#3B3215", border: "1px solid #6E5C21", borderRadius: 12, fontSize: 13, color: "#FFC65E", textAlign: "center" }}>
-              🧪 Time machine — tap bubbles to test. Nothing here is saved.
-            </div>
-          )}
-          <BubbleField habits={view.habits} completions={view.completions} onTap={(ch) => { setTapWhenDays(0); setTapChore(ch); }} popId={popId} simDays={simDays} suggestedIds={suggestedBubbleIds} />
-          <div style={{ padding: "0 20px 10px", display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                disabled={!canShuffleSuggestions}
-                onClick={shuffleSuggestions}
-                aria-pressed={bubbleSuggestionsVisible && suggestedBubbleIds.size > 0}
-                aria-label="Shuffle chore suggestions to reach the green zone"
-                style={{
-                  ...btnStyle(bubbleSuggestionsVisible && suggestedBubbleIds.size > 0 ? "#3B3415" : "#0F2530", "#FFE27A"),
-                  flex: 1,
-                  border: `1px solid ${bubbleSuggestionsVisible && suggestedBubbleIds.size > 0 ? "#C9A92C" : "#554B25"}`,
-                  opacity: canShuffleSuggestions ? 1 : 0.45,
-                }}
-              >
-                🎲 Shuffle chore suggestions
-              </button>
-              {bubbleSuggestionsVisible && suggestedBubbleIds.size > 0 && (
-                <button
-                  onClick={hideBubbleSuggestions}
-                  aria-label="Hide chore suggestions"
-                  style={{ ...btnStyle("#2B2417", "#FFE27A"), width: 52, padding: 0, border: "1px solid #8A722A", fontSize: 18 }}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <BubblesScreen
+          habits={view.habits}
+          completions={view.completions}
+          simDays={simDays}
+          popId={popId}
+          onComplete={logCompletion}
+          showToast={showToast}
+        />
       )}
 
       {tab === "log" && (
@@ -703,30 +666,6 @@ export default function HabitBubbles() {
         </Modal>
       )}
 
-      {/* Complete chore */}
-      {tapChore && (
-        <Modal onClose={() => { setTapChore(null); setTapWhenDays(0); }}>
-          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700 }}>{tapChore.name}</div>
-          <div style={{ fontSize: 13, color: "#7FA3AC", margin: "4px 0 16px" }}>
-            Last done {timeAgo(habitHistoryFor(view.completions, tapChore.id)[0]?.at ?? tapChore.createdAt)} · worth {tapChore.effort} pts
-          </div>
-          <div style={{ fontSize: 12, color: "#7FA3AC", marginBottom: 7 }}>When was it done?</div>
-          <div style={{ display: "flex", gap: 7, marginBottom: 18, flexWrap: "wrap" }}>
-            {[{ d: 0, l: "Just now" }, { d: 1, l: "Yesterday" }, { d: 2, l: "2 days ago" }, { d: 3, l: "3 days ago" }].map((o) => (
-              <button
-                key={o.d}
-                onClick={() => setTapWhenDays(o.d)}
-                style={{ ...btnStyle(tapWhenDays === o.d ? "#5FE0BB" : "#0F2530", tapWhenDays === o.d ? "#0C1B26" : "#B9D2D8"), padding: "7px 12px", fontSize: 13, border: tapWhenDays === o.d ? "none" : "1px solid #1E4152" }}
-              >
-                {o.l}
-              </button>
-            ))}
-          </div>
-          <button onClick={() => logCompletion(tapChore)} style={{ ...btnStyle("#5FE0BB"), width: "100%" }}>
-            Mark done
-          </button>
-        </Modal>
-      )}
 
       {/* Edit / add chore */}
       {editChore && (
