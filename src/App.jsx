@@ -203,7 +203,8 @@ export default function HabitBubbles() {
   const rhythm = rhythmScore(view.habits, view.completions, now(), settings.rhythmWindowDays);
   const rhythmZoneInfo = rhythm == null ? null : rhythmZone(rhythm, settings.greenStart);
   const healthPct = rhythm == null ? null : Math.round(rhythm * 100);
-  const healthColor = !rhythmZoneInfo ? theme.textMuted : rhythmZoneInfo.key === "green" ? theme.zoneTop : rhythmZoneInfo.key === "amber" ? theme.zoneMiddle : theme.zoneBehind;
+  const healthColor = !rhythmZoneInfo ? theme.textMuted : rhythmZoneInfo.key === "green" ? theme.rhythmTop : rhythmZoneInfo.key === "amber" ? theme.zoneMiddle : theme.zoneBehind;
+  const healthFace = rhythm == null ? null : faceFor(rhythm * 100, settings.greenStart * 100);
 
   return (
     <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: `radial-gradient(120% 100% at 50% 0%, ${theme.surface} 0%, ${theme.night} 70%)`, fontFamily: "'Nunito Sans', sans-serif", color: theme.text, overflow: "hidden" }}>
@@ -254,20 +255,20 @@ export default function HabitBubbles() {
             <>
               <div style={{ textAlign: "center", marginBottom: 2 }}>
                 <span
-                  key={faceFor(healthPct)}
+                  key={healthFace}
                   style={{
                     fontSize: 30,
                     display: "inline-block",
-                    animation: healthPct >= 90 ? "breathe 4s ease-in-out infinite" : healthPct < 15 ? "wilt 3.5s ease-in-out infinite" : "none",
+                    animation: rhythmZoneInfo.key === "green" ? "breathe 4s ease-in-out infinite" : healthPct < 15 ? "wilt 3.5s ease-in-out infinite" : "none",
                     transition: "transform 0.5s ease",
                   }}
                 >
-                  {faceFor(healthPct)}
+                  {healthFace}
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 5 }}>
                 <span style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 13, fontWeight: 600, color: theme.textDim, letterSpacing: 0.4 }}>My rhythm</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: healthPulse ? theme.zoneTop : healthColor, transition: "color 0.5s ease" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: healthPulse ? theme.rhythmTop : healthColor, transition: "color 0.5s ease" }}>
                   {healthPct}%
                 </span>
               </div>

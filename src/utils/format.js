@@ -1,8 +1,10 @@
 import { now } from "./clock.js";
 
-// The home's face: seven moods from loving bliss down to withering
-export function faceFor(pct) {
-  if (pct >= 90) return "🥰🌱";
+// The home's face: seven moods from loving bliss down to withering.
+// The best mood follows the user's configured top-zone threshold so the face
+// cannot disagree with the rhythm label or bar.
+export function faceFor(pct, topStartPct = 90) {
+  if (pct >= topStartPct) return "🥰🌱";
   if (pct >= 75) return "🙂";
   if (pct >= 60) return "😐";
   if (pct >= 45) return "😟";

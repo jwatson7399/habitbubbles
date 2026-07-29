@@ -37,7 +37,7 @@ export default function LogScreen({ habits, completions, rhythmWindowDays, green
 
   const score = rhythmScore(habits, completions, at, windowDays);
   const zone = score == null ? null : rhythmZone(score, greenStart);
-  const zoneColor = !zone ? theme.textMuted : zone.key === "green" ? theme.zoneTop : zone.key === "amber" ? theme.zoneMiddle : theme.zoneBehind;
+  const zoneColor = !zone ? theme.textMuted : zone.key === "green" ? theme.rhythmTop : zone.key === "amber" ? theme.zoneMiddle : theme.zoneBehind;
 
   const recent = activeHabits
     .flatMap((habit) => habitHistoryFor(completions, habit.id).map((entry) => ({ entry, habit })))

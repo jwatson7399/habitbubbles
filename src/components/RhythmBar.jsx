@@ -35,7 +35,7 @@ export default function RhythmBar({ score, greenStart = DEFAULT_GREEN_START, hei
   }
 
   const zone = rhythmZone(score, greenStart);
-  const color = pulse ? theme.zoneTop : zone.key === "green" ? theme.zoneTop : zone.key === "amber" ? theme.zoneMiddle : theme.zoneBehind;
+  const color = pulse ? theme.rhythmTop : zone.key === "green" ? theme.rhythmTop : zone.key === "amber" ? theme.zoneMiddle : theme.zoneBehind;
   const green = Math.min(1, Math.max(AMBER_START + 0.0001, Number(greenStart) || DEFAULT_GREEN_START));
   const buildingPct = Math.round(AMBER_START * 100);
   const greenPct = Math.round(green * 100);
@@ -52,7 +52,7 @@ export default function RhythmBar({ score, greenStart = DEFAULT_GREEN_START, hei
         position: "relative",
         height,
         borderRadius: height / 2,
-        background: `linear-gradient(to right, ${theme.zoneBehind}30 0 ${buildingPct}%, ${theme.zoneMiddle}30 ${buildingPct}% ${greenPct}%, ${theme.zoneTop}30 ${greenPct}% 100%)`,
+        background: `linear-gradient(to right, ${theme.zoneBehind}30 0 ${buildingPct}%, ${theme.zoneMiddle}30 ${buildingPct}% ${greenPct}%, ${theme.rhythmTop}30 ${greenPct}% 100%)`,
         border: `1px solid ${theme.border}`,
         overflow: "hidden",
       }}
@@ -64,7 +64,7 @@ export default function RhythmBar({ score, greenStart = DEFAULT_GREEN_START, hei
           height: "100%",
           borderRadius: height / 2,
           background: `linear-gradient(to right, ${color}99, ${color})`,
-          boxShadow: pulse ? `0 0 20px ${theme.zoneTop}CC` : percent >= 80 ? `0 0 10px ${color}88` : "none",
+          boxShadow: pulse ? `0 0 20px ${theme.rhythmTop}CC` : zone.key === "green" ? `0 0 10px ${color}88` : "none",
           animation: pulse ? "barSwell 1.4s ease-out" : "none",
           transformOrigin: "left center",
           transition: "width 0.7s ease, background 0.35s ease, box-shadow 0.5s ease",
