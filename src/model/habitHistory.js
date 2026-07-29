@@ -30,7 +30,7 @@ export function lastDoneDayStatus(completions, habitId, now) {
 
   const days = Math.max(0, Math.floor((now - latest) / DAY));
   if (days === 0) {
-    return { days, compact: "today", spoken: "last done today" };
+    return { days, compact: "0d", spoken: "last done today" };
   }
   return {
     days,

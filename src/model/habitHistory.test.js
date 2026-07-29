@@ -40,7 +40,7 @@ describe("habitHistory", () => {
     });
     expect(lastDoneDayStatus([{ habitId: "h", at: NOW - 23 * 3600000 }], "h", NOW)).toEqual({
       days: 0,
-      compact: "today",
+      compact: "0d",
       spoken: "last done today",
     });
     expect(lastDoneDayStatus(comps, "h", NOW)).toEqual({
