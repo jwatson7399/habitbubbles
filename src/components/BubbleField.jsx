@@ -3,6 +3,8 @@ import * as d3 from "d3";
 import { clampBubbleCenter, releaseBubbleNode } from "../bubblePhysics.js";
 import { usesCompactBubbleLabel } from "../bubblePresentation.js";
 import { habitBubbleNodes } from "../model/bubbleSizing.js";
+import { lastDoneDayStatus } from "../model/habitHistory.js";
+import { quotaStreak } from "../model/rhythmModel.js";
 import { now as clockNow } from "../utils/clock.js";
 import { theme } from "../theme.js";
 
@@ -60,13 +62,16 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
     // field. Pressure is already a bounded 0..1 quantity, so it doubles as
     // the layout "prominence" that pulls due habits toward the center —
     // that's a placement choice, not a sizing one.
-    const bubbleNodes = habitBubbleNodes(habits, completions, clockNow());
+    const targetNow = clockNow();
+    const bubbleNodes = habitBubbleNodes(habits, completions, targetNow);
     const orbit = Math.min(size.w, size.h) * 0.38;
     return bubbleNodes.map((item, index) => {
       const angle = index * 2.399963229728653;
       const distance = orbit * (1 - item.pressure);
       return {
         ...item,
+        lastDone: lastDoneDayStatus(completions, item.id, targetNow),
+        streak: quotaStreak(item.habit, completions, targetNow),
         hue: bubbleHue(index),
         focusX: size.w / 2 + Math.cos(angle) * distance,
         focusY: size.h / 2 + Math.sin(angle) * distance * 0.72,
@@ -85,6 +90,8 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
           habit: t.habit,
           pressure: t.pressure,
           priority: t.priority,
+          lastDone: t.lastDone,
+          streak: t.streak,
           mathRadius: t.mathRadius,
           visualRadius: t.visualRadius,
           interactRadius: t.interactRadius,
@@ -249,7 +256,7 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
             key={n.id}
             type="button"
             className="bubble-hit"
-            aria-label={`${n.habit.name}, importance ${n.habit.importance}${suggested ? ", suggested habit" : ""}`}
+            aria-label={`${n.habit.name}, ${n.lastDone.spoken}${n.streak >= 2 ? `, ${n.streak}-period hot streak` : ""}, importance ${n.habit.importance}${suggested ? ", suggested habit" : ""}`}
             data-label-mode={!showInlineLabel ? "hidden" : compactLabel ? "compact" : "full"}
             onPointerDown={(e) => onPointerDown(e, n)}
             onPointerMove={(e) => onPointerMove(e, n)}
@@ -343,21 +350,70 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
                     {n.habit.name}
                   </span>
                   {!compactLabel && (
-                    <span
+                    <div
                       style={{
-                        fontFamily: "'Baloo 2', sans-serif",
-                        fontWeight: 800,
-                        fontSize: Math.max(9, Math.min(n.visualRadius * 0.22, 12)),
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 4,
                         color: theme.night,
-                        opacity: 0.62,
                         lineHeight: 1,
                         whiteSpace: "nowrap",
                       }}
                     >
-                      importance {n.habit.importance}
-                    </span>
+                      <span
+                        style={{
+                          fontFamily: "'Baloo 2', sans-serif",
+                          fontWeight: 700,
+                          fontSize: Math.max(9, Math.min(n.visualRadius * 0.22, 12)),
+                          opacity: 0.56,
+                        }}
+                      >
+                        {n.lastDone.compact}
+                      </span>
+                      {n.streak >= 2 && (
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            padding: "2px 5px",
+                            borderRadius: 999,
+                            background: "rgba(21,16,51,0.14)",
+                            border: "1px solid rgba(21,16,51,0.16)",
+                            fontFamily: "'Baloo 2', sans-serif",
+                            fontWeight: 700,
+                            fontSize: Math.max(8, Math.min(n.visualRadius * 0.18, 10)),
+                            opacity: 0.78,
+                          }}
+                        >
+                          🔥 {n.streak}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
+              )}
+              {compactLabel && showInlineLabel && n.streak >= 2 && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: "7%",
+                    bottom: "6%",
+                    width: Math.max(12, Math.min(n.visualRadius * 0.56, 20)),
+                    height: Math.max(12, Math.min(n.visualRadius * 0.56, 20)),
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    background: "rgba(21,16,51,0.72)",
+                    border: "1px solid rgba(255,255,255,0.28)",
+                    fontSize: Math.max(7, Math.min(n.visualRadius * 0.25, 10)),
+                    opacity: 0.82,
+                    lineHeight: 1,
+                    pointerEvents: "none",
+                  }}
+                >
+                  🔥
+                </span>
               )}
               {compactLabel && showInlineLabel && (
                 <span
@@ -371,17 +427,17 @@ export default function BubbleField({ habits, completions, onTap, popId, simDays
                     borderRadius: "50%",
                     display: "grid",
                     placeItems: "center",
-                    background: "rgba(12,27,38,0.88)",
+                    background: "rgba(21,16,51,0.72)",
                     color: theme.text,
-                    border: "1px solid rgba(255,255,255,0.4)",
+                    border: "1px solid rgba(255,255,255,0.28)",
                     fontFamily: "'Baloo 2', sans-serif",
-                    fontWeight: 800,
-                    fontSize: 9,
+                    fontWeight: 700,
+                    fontSize: n.lastDone.days != null && n.lastDone.days >= 100 ? 7 : 8,
                     lineHeight: 1,
                     pointerEvents: "none",
                   }}
                 >
-                  {n.habit.importance}
+                  {n.lastDone.days === null ? "—" : n.lastDone.compact}
                 </span>
               )}
             </div>
