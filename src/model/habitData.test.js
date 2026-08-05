@@ -70,6 +70,19 @@ describe("habitData", () => {
     expect(applyOperation(d, op("completion:remove", { ids: ["c1"] })).completions).toHaveLength(0);
   });
 
+  it("updates an existing completion without duplicating it", () => {
+    let d = normalizeData(defaultData());
+    d = applyOperation(d, op("completion:add", { completion: { id: "c1", habitId: "h", at: 1000 } }));
+    d = applyOperation(d, op("completion:update", { completion: { id: "c1", habitId: "h", at: 2000 } }));
+    expect(d.completions).toEqual([{ id: "c1", habitId: "h", at: 2000 }]);
+  });
+
+  it("ignores an update for a completion that no longer exists", () => {
+    const base = normalizeData(defaultData());
+    const after = applyOperation(base, op("completion:update", { completion: { id: "missing", habitId: "h", at: 2000 } }));
+    expect(after.completions).toEqual([]);
+  });
+
   it("ignores unknown operation types", () => {
     const base = normalizeData(defaultData());
     const after = applyOperation(base, op("nope:nope"));

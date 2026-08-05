@@ -62,6 +62,17 @@ export function applyOperation(value, op) {
       next = { ...data, completions: data.completions.filter((item) => !ids.has(item.id)) };
       break;
     }
+    case "completion:update": {
+      const replacement = op.completion;
+      if (!replacement || !data.completions.some((item) => item.id === replacement.id)) break;
+      next = {
+        ...data,
+        completions: data.completions.map((item) =>
+          item.id === replacement.id ? replacement : item
+        ),
+      };
+      break;
+    }
     case "habit:upsert": {
       const exists = data.habits.some((item) => item.id === op.habit.id);
       const habits = exists

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   rhythmScore,
   rhythmZone,
@@ -9,8 +9,10 @@ import {
 } from "../model/rhythmModel.js";
 import { habitHistoryFor, completionImpact } from "../model/habitHistory.js";
 import { now as clockNow } from "../utils/clock.js";
-import { timeAgo } from "../utils/format.js";
+import { historyDate, timeAgo } from "../utils/format.js";
 import { btnStyle } from "../components/controls.jsx";
+import CompletionTimeFields from "../components/CompletionTimeFields.jsx";
+import { Modal } from "../components/Modal.jsx";
 import RhythmBar from "../components/RhythmBar.jsx";
 import { theme } from "../theme.js";
 
@@ -30,7 +32,9 @@ export function periodUnit(periodDays) {
 // Replaces the chore-era "0/14 points" tally with rhythm: a fortnight-window
 // score across all habits, per-habit attainment against each habit's own
 // cadence, and a plain activity feed. No points or effort tally anywhere.
-export default function LogScreen({ habits, completions, rhythmWindowDays, greenStart, onRemoveCompletion }) {
+export default function LogScreen({ habits, completions, rhythmWindowDays, greenStart, onUpdateCompletion, onRemoveCompletion }) {
+  const [editing, setEditing] = useState(null);
+  const [editingAt, setEditingAt] = useState(null);
   const at = clockNow();
   const windowDays = rhythmWindowDays || DEFAULT_RHYTHM_WINDOW_DAYS;
   const activeHabits = (habits || []).filter((h) => !h.archived);
@@ -43,6 +47,18 @@ export default function LogScreen({ habits, completions, rhythmWindowDays, green
     .flatMap((habit) => habitHistoryFor(completions, habit.id).map((entry) => ({ entry, habit })))
     .sort((a, b) => b.entry.at - a.entry.at)
     .slice(0, 30);
+
+  const startEditing = (entry, habit) => {
+    setEditing({ entry, habit });
+    setEditingAt(entry.at);
+  };
+
+  const saveEdit = () => {
+    if (onUpdateCompletion(editing.entry, editingAt)) {
+      setEditing(null);
+      setEditingAt(null);
+    }
+  };
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 26px" }}>
@@ -110,11 +126,18 @@ export default function LogScreen({ habits, completions, rhythmWindowDays, green
           <div key={entry.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderBottom: `1px solid ${theme.border}` }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{habit.name}</div>
-              <div style={{ fontSize: 12, color: theme.textMuted }}>{timeAgo(entry.at, at)}</div>
+              <div style={{ fontSize: 12, color: theme.textMuted }}>{timeAgo(entry.at, at)} · {historyDate(entry.at)}</div>
             </div>
             <span style={{ fontSize: 12, fontWeight: 800, color: impact === "extra" ? theme.zoneMiddle : theme.zoneTop, whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: 0.3 }}>
               {impact}
             </span>
+            <button
+              onClick={() => startEditing(entry, habit)}
+              aria-label={`Edit ${habit.name} completion time`}
+              style={{ ...btnStyle(theme.surface, theme.textDim), padding: "5px 10px", fontSize: 13, border: `1px solid ${theme.border}`, lineHeight: 1, flexShrink: 0 }}
+            >
+              Edit
+            </button>
             <button
               onClick={() => onRemoveCompletion(entry)}
               aria-label={`Delete ${habit.name} completion`}
@@ -125,6 +148,17 @@ export default function LogScreen({ habits, completions, rhythmWindowDays, green
           </div>
         );
       })}
+      {editing && (
+        <Modal onClose={() => setEditing(null)} title={`Edit ${editing.habit.name} completion`}>
+          <div style={{ fontFamily: "'Baloo 2', sans-serif", fontSize: 19, fontWeight: 700, marginBottom: 3 }}>Edit completion</div>
+          <div style={{ color: theme.textMuted, fontSize: 13, marginBottom: 16 }}>{editing.habit.name}</div>
+          <CompletionTimeFields value={editingAt} max={at} onChange={setEditingAt} />
+          <div style={{ color: theme.textMuted, fontSize: 11.5, margin: "7px 0 18px" }}>
+            Rhythm and streak credit will be recalculated for this time.
+          </div>
+          <button onClick={saveEdit} style={{ ...btnStyle(theme.zoneTop), width: "100%" }}>Save time</button>
+        </Modal>
+      )}
     </div>
   );
 }

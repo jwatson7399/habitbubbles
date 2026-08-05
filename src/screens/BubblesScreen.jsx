@@ -6,9 +6,11 @@ import { attainment, quotaStreak, rhythmZone } from "../model/rhythmModel.js";
 import { habitHistoryFor, completionImpact } from "../model/habitHistory.js";
 import { rankSuggestions } from "../model/suggestNow.js";
 import { now as clockNow } from "../utils/clock.js";
-import { timeAgo } from "../utils/format.js";
+import { historyDate, timeAgo } from "../utils/format.js";
+import { daysAgoAt, defaultCompletionAt, LATE_NIGHT_CUTOFF_HOUR } from "../model/completionTime.js";
 import { Modal } from "../components/Modal.jsx";
 import { btnStyle } from "../components/controls.jsx";
+import CompletionTimeFields from "../components/CompletionTimeFields.jsx";
 import BubbleField from "../components/BubbleField.jsx";
 import { theme } from "../theme.js";
 
@@ -47,32 +49,45 @@ function periodEndingLabel(habit, now) {
 // of the chore-era shuffle-a-combo suggestion.
 export default function BubblesScreen({ habits, completions, simDays, popId, onComplete, showToast }) {
   const [tapHabit, setTapHabit] = useState(null);
+  const [tapAt, setTapAt] = useState(null);
   const [tapWhenDays, setTapWhenDays] = useState(0);
   const [suggestIndex, setSuggestIndex] = useState(0);
   const [suggestedHabitId, setSuggestedHabitId] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
 
   const openSheet = (habit) => {
+    const at = defaultCompletionAt(clockNow());
+    setTapAt(at);
     setTapWhenDays(0);
     setHistoryOpen(false);
     setTapHabit(habit);
   };
   const closeSheet = () => {
     setTapHabit(null);
+    setTapAt(null);
     setTapWhenDays(0);
     setHistoryOpen(false);
   };
 
   const markDone = () => {
     if (!tapHabit) return;
-    if (!canLogCompletion(tapHabit, clockNow() - tapWhenDays * DAY)) {
+    if (!canLogCompletion(tapHabit, tapAt)) {
       showToast("That's before this habit started tracking.");
       return;
     }
-    if (onComplete(tapHabit, tapWhenDays)) {
+    if (onComplete(tapHabit, tapAt)) {
       if (suggestedHabitId === tapHabit.id) setSuggestedHabitId(null);
       closeSheet();
     }
+  };
+
+  const chooseWhen = (days) => {
+    const current = clockNow();
+    const next = days === 0
+      ? defaultCompletionAt(current)
+      : daysAgoAt(current, days, tapAt || current);
+    setTapAt(next);
+    setTapWhenDays(days);
   };
 
   const suggestions = rankSuggestions(habits, completions, clockNow());
@@ -140,12 +155,25 @@ export default function BubblesScreen({ habits, completions, simDays, popId, onC
             {[{ d: 0, l: "Just now" }, { d: 1, l: "Yesterday" }, { d: 2, l: "2 days ago" }, { d: 3, l: "3 days ago" }].map((o) => (
               <button
                 key={o.d}
-                onClick={() => setTapWhenDays(o.d)}
+                onClick={() => chooseWhen(o.d)}
                 style={{ ...btnStyle(tapWhenDays === o.d ? theme.zoneTop : theme.surface, tapWhenDays === o.d ? theme.night : theme.textDim), padding: "7px 12px", fontSize: 13, border: tapWhenDays === o.d ? "none" : `1px solid ${theme.border}` }}
               >
                 {o.l}
               </button>
             ))}
+          </div>
+          <CompletionTimeFields
+            value={tapAt}
+            max={tapNow}
+            onChange={(at) => {
+              setTapAt(at);
+              setTapWhenDays(null);
+            }}
+          />
+          <div style={{ color: theme.textMuted, fontSize: 11.5, lineHeight: 1.4, margin: "7px 0 18px" }}>
+            {tapWhenDays === 0 && new Date(tapNow).getHours() < LATE_NIGHT_CUTOFF_HOUR
+              ? "Late night: Just now counts as 11:00 PM on your previous waking day. You can change it above."
+              : `This will be logged as ${historyDate(tapAt)}.`}
           </div>
           <button onClick={markDone} style={{ ...btnStyle(theme.zoneTop), width: "100%" }}>
             Mark done

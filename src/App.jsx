@@ -4,7 +4,7 @@ import { completionIds, shouldPulseRhythm } from "./model/rhythmPulse.js";
 import { rhythmScore, rhythmZone } from "./model/rhythmModel.js";
 import { DAY, uid, defaultData, normalizeData, applyOperation } from "./model/habitData.js";
 import { normalizeHabit, canLogCompletion } from "./model/habitSchema.js";
-import { faceFor } from "./utils/format.js";
+import { faceFor, historyDate } from "./utils/format.js";
 import { realNow, now, setTimeOffset } from "./utils/clock.js";
 import { Modal } from "./components/Modal.jsx";
 import { btnStyle, Stepper } from "./components/controls.jsx";
@@ -125,22 +125,42 @@ export default function HabitBubbles() {
     });
   };
 
-  // "whenDays" lets you backdate a habit you forgot to log (e.g. done yesterday).
-  // Returns true/false so callers (the completion sheet) know whether to close.
-  const logCompletion = (habit, whenDays = 0) => {
-    const at = now() - whenDays * DAY;
+  const completionTimeIsValid = (habit, at) => {
+    if (at > now()) {
+      showToast("A completion can't be in the future.");
+      return false;
+    }
     if (!canLogCompletion(habit, at)) {
       showToast("That's before this habit started tracking.");
       return false;
     }
+    return true;
+  };
+
+  // The completion sheet supplies an exact local date and time, allowing a
+  // forgotten entry to be backdated without collapsing it to a whole-day offset.
+  // Returns true/false so callers (the completion sheet) know whether to close.
+  const logCompletion = (habit, at = now()) => {
+    if (!completionTimeIsValid(habit, at)) return false;
     const comp = { id: uid(), habitId: habit.id, habitName: habit.name, at };
     if (!commit({ type: "completion:add", completion: comp })) return false;
     setPopId(habit.id);
     if (popTimer.current) clearTimeout(popTimer.current);
     popTimer.current = setTimeout(() => setPopId(null), 1000);
-    const when = whenDays === 0 ? "" : whenDays === 1 ? " (yesterday)" : ` (${whenDays}d ago)`;
-    showToast(`${habit.name} done${when}`, () => {
+    showToast(`${habit.name} done · ${historyDate(at)}`, () => {
       commit({ type: "completion:remove", ids: [comp.id] });
+      setToast(null);
+    });
+    return true;
+  };
+
+  const updateCompletion = (entry, at) => {
+    const habit = view.habits.find((item) => item.id === entry.habitId);
+    if (!habit || !completionTimeIsValid(habit, at)) return false;
+    const updated = { ...entry, habitName: habit.name, at };
+    if (!commit({ type: "completion:update", completion: updated })) return false;
+    showToast(`Moved ${habit.name} · ${historyDate(at)}`, () => {
+      commit({ type: "completion:update", completion: entry });
       setToast(null);
     });
     return true;
@@ -296,6 +316,7 @@ export default function HabitBubbles() {
           completions={view.completions}
           rhythmWindowDays={settings.rhythmWindowDays}
           greenStart={settings.greenStart}
+          onUpdateCompletion={updateCompletion}
           onRemoveCompletion={removeCompletion}
         />
       )}
